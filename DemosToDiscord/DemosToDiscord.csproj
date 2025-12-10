@@ -4,6 +4,9 @@
 		<TargetFramework>net8.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+
+		<!-- Plugin Version -->
+		<Version>1.1.0</Version>
 	</PropertyGroup>
 
 	<ItemGroup>

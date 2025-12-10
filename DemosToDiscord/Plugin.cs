@@ -17,7 +17,7 @@ public class Plugin : IPluginV2
 
     public string Name => "DemosToDiscord";
     public string Author => "OllyMc27";
-    public string Version => "1.0.2";
+    public string Version => "1.1.0";
 
     public Plugin(DemoUploadService demoService, DemosToDiscordConfig config)
     {

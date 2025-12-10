@@ -1,18 +1,19 @@
 ﻿using Data.Models;
 using Microsoft.Extensions.Logging;
 using SharedLibraryCore;
+using SharedLibraryCore.Configuration;
 using SharedLibraryCore.Database.Models;
 using SharedLibraryCore.Events.Management;
 using SharedLibraryCore.Interfaces;
-using SharedLibraryCore.Configuration;
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -134,7 +135,7 @@ public class DemoUploadService
             await WaitForFileReady(found.Value.jsonPath!);
 
         await UploadAsync(found.Value.demoPath, found.Value.jsonPath,
-            server, evt.Penalty, evt.Client, CancellationToken.None);
+            server, evt.Penalty, evt.Client, expectedMap, CancellationToken.None);
     }
 
     // -----------------------------
@@ -302,7 +303,7 @@ public class DemoUploadService
     }
 
     // -----------------------------
-    // UPLOAD
+    // UPLOAD TO DISCORD 
     // -----------------------------
     private async Task UploadAsync(
         string demoPath,
@@ -310,6 +311,7 @@ public class DemoUploadService
         IGameServer server,
         EFPenalty penalty,
         EFClient target,
+        string mapAtReport,
         CancellationToken _)
     {
         try
@@ -317,23 +319,30 @@ public class DemoUploadService
             string temp = Path.Combine(Path.GetTempPath(), Path.GetFileName(demoPath));
             File.Copy(demoPath, temp, true);
 
-            var embed = BuildEmbed(server, penalty, target, true);
+            var embed = BuildEmbed(server, penalty, target, true, mapAtReport);
             var payload = new { embeds = new[] { embed } };
 
             using var form = new MultipartFormDataContent();
-            form.Add(new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"), "payload_json");
 
+            // ✅ PAYLOAD FIRST (forces embed first)
+            form.Add(
+                new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"),
+                "payload_json"
+            );
+
+            // ✅ FILE #1 (demo)
             var demoStream = File.OpenRead(temp);
             var demoContent = new StreamContent(demoStream);
             demoContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-            form.Add(demoContent, "file", Path.GetFileName(temp));
+            form.Add(demoContent, "files[0]", Path.GetFileName(temp));
 
+            // ✅ FILE #2 (json metadata - optional)
             if (!string.IsNullOrEmpty(jsonPath) && File.Exists(jsonPath))
             {
                 var js = File.OpenRead(jsonPath);
                 var jc = new StreamContent(js);
                 jc.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-                form.Add(jc, "file2", Path.GetFileName(jsonPath));
+                form.Add(jc, "files[1]", Path.GetFileName(jsonPath));
             }
 
             var response = await _http.PostAsync(_config.Webhook, form, CancellationToken.None);
@@ -349,6 +358,7 @@ public class DemoUploadService
         }
     }
 
+
     // -----------------------------
     // NO DEMO
     // -----------------------------
@@ -358,7 +368,8 @@ public class DemoUploadService
         EFClient target,
         CancellationToken _)
     {
-        var embed = BuildEmbed(server, penalty, target, false);
+        string mapAtReport = server.Map?.Name ?? "Unknown";
+        var embed = BuildEmbed(server, penalty, target, false, mapAtReport);
         var payload = new { embeds = new[] { embed } };
 
         var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
@@ -366,40 +377,69 @@ public class DemoUploadService
     }
 
     // -----------------------------
-    // EMBED
+    // DISCORD EMBED MESSAGE
     // -----------------------------
     private object BuildEmbed(
         IGameServer server,
         EFPenalty penalty,
         EFClient target,
-        bool hasDemo)
+        bool hasDemo,
+        string mapAtReport)
     {
         string reporter = penalty.Punisher?.CurrentAlias?.Name.StripColors() ?? "UNKNOWN";
         string suspect = target.CurrentAlias?.Name.StripColors() ?? "UNKNOWN";
-        string map = server.Map?.Name ?? "Unknown";
+        string map = string.IsNullOrWhiteSpace(mapAtReport) ? "Unknown" : mapAtReport;
         string game = server.GameCode.ToString();
         string guid = target.NetworkId.ToString();
+
         string baseUrl = _appConfig.ManualWebfrontUrl?.TrimEnd('/') ?? "";
         string profileUrl = !string.IsNullOrWhiteSpace(baseUrl)
             ? $"{baseUrl}/Client/Profile/{target.ClientId}"
             : "Unavailable";
 
+        string version = System.Reflection.Assembly
+            .GetExecutingAssembly()
+            .GetName()
+            .Version?
+            .ToString() ?? "DEV";
+
         return new
         {
-            title = hasDemo ? "📩 New Report – Demo Attached" : "⚠ Report – No Demo Found",
-            color = hasDemo ? 0x2ecc71 : 0xe67e22,
+            title = "🎬 Demo Uploaded for New Report",
+            description =
+                $"**Target Player:** `{suspect}`\n" +
+                $"**Reported By:** `{reporter}`",
+
+            timestamp = DateTime.UtcNow.ToString("o"),
+
+            color = 3066993,
+
+            footer = new
+            {
+                text = $"DemosToDiscord v{version}"
+            },
+
             fields = new[]
             {
-                new { name = "Server",   value = server.ServerName.StripColors(), inline = false },
-                new { name = "Game",     value = game,                            inline = true  },
-                new { name = "Map",      value = map,                             inline = true  },
-                new { name = "Reporter", value = reporter,                        inline = false },
-                new { name = "Target",   value = suspect,                         inline = false },
-                new { name = "GUID",     value = guid,                            inline = false },
-                new { name = "Profile",  value = $"[{guid}]({profileUrl})",       inline = false },
+            new { name = "🖥 Server", value = $"**{server.ServerName.StripColors()}**", inline = false },
+
+            new { name = "🎮 Game", value = game, inline = true },
+            new { name = "🗺 Map", value = map, inline = true },
+
+            new { name = "👤 Player GUID", value = $"`{guid}`", inline = false },
+
+            new { name = "🔗 Player Profile", value = $"[View Web Profile]({profileUrl})", inline = false },
+
+            new
+            {
+                name = "📎 Demo Status",
+                value = hasDemo ? "✅ Demo file successfully attached" : "❌ No demo file found",
+                inline = false
             }
+        }
         };
     }
+
 
     private class DemoFileMeta
     {
