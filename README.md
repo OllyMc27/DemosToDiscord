@@ -1,15 +1,25 @@
 ﻿[![Version](https://img.shields.io/github/v/release/OllyMc27/DemosToDiscord?label=version&style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/releases)
 [![Downloads](https://img.shields.io/github/downloads/OllyMc27/DemosToDiscord/total?label=downloads&style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/releases)
-[![License](https://img.shields.io/github/license/OllyMc27/DemosToDiscord?style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/blob/main/LICENSE)
 [![Issues](https://img.shields.io/github/issues/OllyMc27/DemosToDiscord?style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/issues)
-[![Stars](https://img.shields.io/github/stars/OllyMc27/DemosToDiscord?style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/stargazers)
 
 
 # DemosToDiscord
 
 Automatically uploads Plutonium demo files to Discord when a player is reported in IW4MAdmin.
 
-This plugin removes the manual work from handling reports by detecting the correct demo file, waiting for the match to end, and uploading everything into Discord with a clean, informative embed for staff review.
+This plugin is designed to work **alongside existing IW4MAdmin → Discord bridge plugins** such as:
+
+- [**BetterIW4ToDiscord**](https://github.com/Ayymoss/BetterIW4ToDiscord)
+- [**YADB – Yet Another Discord Bridge**](https://forum.awog.at/topic/89/release-yadb-yet-another-discord-bridge)
+
+- Those plugins handle general chat, reports, and events —  
+**DemosToDiscord’s job is to automatically attach the actual demo files** to Discord when a report occurs.
+
+This removes manual effort from staff by:
+- Finding the correct demo file automatically
+- Waiting for the match to end
+- Uploading the demo and metadata
+- Posting a clean, structured embed into Discord for review
 
 ---
 
@@ -139,12 +149,6 @@ Example `DemosToDiscord.json`:
 ## 👤 Author
 
 Developed by **OllyMc27**
-
----
-
-## 📜 License
-
-MIT License
 
 ---
 
