@@ -235,23 +235,12 @@ public class DemoUploadService
     }
 
     // -----------------------------
-    // FILENAME PARSER (FIXED)
+    // FILENAME PARSER 
     // -----------------------------
     private DemoFileMeta? ParseFilename(string name)
     {
         try
         {
-            // Examples:
-            //  tdm_mp_nuketown_2020_12_10_2025_4_4.demo
-            //  sd_mp_firingrange_12_10_2025_3_50.demo
-            //
-            //  [0] = mode       -> tdm / sd
-            //  [1..N-6] = map   -> mp_nuketown_2020 / mp_firingrange
-            //  [N-5] = month
-            //  [N-4] = day
-            //  [N-3] = year
-            //  [N-2] = hour (24h)
-            //  [N-1] = minute
             var n = Path.GetFileNameWithoutExtension(name);
             var parts = n.Split('_');
 
@@ -324,7 +313,7 @@ public class DemoUploadService
 
             using var form = new MultipartFormDataContent();
 
-            // ✅ PAYLOAD FIRST (forces embed first)
+            
             form.Add(
                 new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"),
                 "payload_json"
@@ -336,7 +325,7 @@ public class DemoUploadService
             demoContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             form.Add(demoContent, "files[0]", Path.GetFileName(temp));
 
-            // ✅ FILE #2 (json metadata - optional)
+            // FILE #2 (json)
             if (!string.IsNullOrEmpty(jsonPath) && File.Exists(jsonPath))
             {
                 var js = File.OpenRead(jsonPath);
@@ -428,7 +417,7 @@ public class DemoUploadService
 
             new { name = "👤 Player GUID", value = $"`{guid}`", inline = false },
 
-            new { name = "🔗 Player Profile", value = $"[View Web Profile]({profileUrl})", inline = false },
+            new { name = "🔗 Player Profile", value = $"[View Profile]({profileUrl})", inline = false },
 
             new
             {
