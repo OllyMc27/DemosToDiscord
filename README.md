@@ -71,7 +71,7 @@ Includes:
 ## 🛠 Installation
 
 1. Download the DLL from the **Releases** page
-2. Copy it to: '''`<IW4MAdmin Root>/IW4MAdmin/Plugins/`'''
+2. Copy it to: '`<IW4MAdmin Root>/IW4MAdmin/Plugins/`'
 3. Restart IW4MAdmin
 4. Edit `DemosToDiscord.json`
 5. Add your Discord webhook and demo paths
