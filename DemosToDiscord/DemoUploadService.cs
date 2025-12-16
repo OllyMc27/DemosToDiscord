@@ -350,13 +350,13 @@ public class DemoUploadService
     // UPLOAD TO DISCORD 
     // -----------------------------
     private async Task UploadAsync(
-        string demoPath,
-        string? jsonPath,
-        IGameServer server,
-        EFPenalty penalty,
-        EFClient target,
-        string mapAtReport,
-        CancellationToken _)
+    string demoPath,
+    string? jsonPath,
+    IGameServer server,
+    EFPenalty penalty,
+    EFClient target,
+    string mapAtReport,
+    CancellationToken _)
     {
         try
         {
@@ -368,19 +368,17 @@ public class DemoUploadService
 
             using var form = new MultipartFormDataContent();
 
-            
             form.Add(
                 new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"),
                 "payload_json"
             );
 
-            // ✅ FILE #1 (demo)
+            // ✅ DO NOT wrap these streams in using
             var demoStream = File.OpenRead(temp);
             var demoContent = new StreamContent(demoStream);
             demoContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             form.Add(demoContent, "files[0]", Path.GetFileName(temp));
 
-            // FILE #2 (json)
             if (!string.IsNullOrEmpty(jsonPath) && File.Exists(jsonPath))
             {
                 var js = File.OpenRead(jsonPath);
@@ -394,6 +392,7 @@ public class DemoUploadService
 
             _logger.LogWarning("Discord response → {Status} | {Body}", response.StatusCode, body);
 
+            // ✅ SAFE: disposing `form` disposes ALL streams
             File.Delete(temp);
         }
         catch (Exception ex)
