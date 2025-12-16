@@ -127,6 +127,11 @@ public class DemoUploadService
         }
 
         // LONG TASKS — NO TOKEN
+        if (_config.Debug)
+        {
+            _logger.LogWarning(
+                "Debug: Demo found, waiting for match end and file finalisation...");
+        }
         await WaitForMapChangeAsync(server);
         await Task.Delay(TimeSpan.FromSeconds(_config.PostMatchDelaySeconds));
 
@@ -275,21 +280,71 @@ public class DemoUploadService
     }
 
     // -----------------------------
-    // FILE UNLOCK
+    // FILE UNLOCK + SIZE STABILITY
     // -----------------------------
     private async Task WaitForFileReady(string path)
     {
-        for (int i = 0; i < 60; i++)
+        const int maxAttempts = 60;
+        const int delayMs = 2000;
+
+        long lastSize = -1;
+
+        for (int i = 0; i < maxAttempts; i++)
         {
-            await Task.Delay(2000);
+            await Task.Delay(delayMs);
+
             try
             {
-                using var s = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.None);
+                var info = new FileInfo(path);
+
+                if (!info.Exists)
+                {
+                    if (_config.Debug)
+                        _logger.LogWarning("Debug: File does not exist yet -> {Path}", path);
+                    continue;
+                }
+
+                if (info.Length == 0)
+                {
+                    if (_config.Debug)
+                        _logger.LogWarning("Debug: File exists but is 0 KB -> {Path}", path);
+                    continue;
+                }
+
+                if (info.Length != lastSize)
+                {
+                    if (_config.Debug)
+                        _logger.LogWarning(
+                            "Debug: File still growing -> {Path} ({Old} → {New} bytes)",
+                            path, lastSize, info.Length);
+
+                    lastSize = info.Length;
+                    continue;
+                }
+
+                using var stream = File.Open(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.None);
+
+                if (_config.Debug)
+                    _logger.LogWarning("Debug: File ready -> {Path}", path);
+
                 return;
             }
-            catch (IOException) { }
+            catch (IOException)
+            {
+                if (_config.Debug)
+                    _logger.LogWarning("Debug: File locked, retrying -> {Path}", path);
+            }
         }
+
+        if (_config.Debug)
+            _logger.LogWarning("Debug: Timed out waiting for file -> {Path}", path);
     }
+
+
 
     // -----------------------------
     // UPLOAD TO DISCORD 
