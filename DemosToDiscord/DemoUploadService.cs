@@ -6,7 +6,6 @@ using SharedLibraryCore.Database.Models;
 using SharedLibraryCore.Events.Management;
 using SharedLibraryCore.Interfaces;
 using System;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -21,6 +20,8 @@ namespace DemosToDiscord;
 
 public class DemoUploadService
 {
+    private const string LogPrefix = "[DemosToDiscord]";
+
     private readonly DemosToDiscordConfig _config;
     private readonly ApplicationConfiguration _appConfig;
     private readonly ILogger<DemoUploadService> _logger;
@@ -51,7 +52,7 @@ public class DemoUploadService
         {
             if (string.IsNullOrWhiteSpace(_config.Webhook))
             {
-                _logger.LogError("Webhook empty — startup skipped.");
+                _logger.LogWarning("{Prefix} Webhook empty — startup skipped.", LogPrefix);
                 return;
             }
 
@@ -66,13 +67,14 @@ public class DemoUploadService
                 "application/json");
 
             var response = await _http.PostAsync(_config.Webhook, content, CancellationToken.None);
-            var body = await response.Content.ReadAsStringAsync();
 
-            _logger.LogWarning("Startup message -> {Status} | {Body}", response.StatusCode, body);
+            _logger.LogInformation(
+                "{Prefix} Startup message sent → {Status}",
+                LogPrefix, response.StatusCode);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Startup message failed");
+            _logger.LogError(ex, "{Prefix} Startup message failed", LogPrefix);
         }
     }
 
@@ -81,26 +83,32 @@ public class DemoUploadService
     // -----------------------------
     public async Task HandlePenaltyAsync(ClientPenaltyEvent evt, CancellationToken token)
     {
-        _logger.LogWarning("REPORT EVENT FIRED for {Client}",
+        _logger.LogInformation(
+            "{Prefix} REPORT EVENT FIRED for {Client}",
+            LogPrefix,
             evt.Client?.CurrentAlias?.Name ?? "UNKNOWN");
 
-        if (evt.Client == null) return;
+        if (evt.Client == null)
+            return;
 
         if (evt.Penalty.Type != EFPenalty.PenaltyType.Report)
             return;
 
         var server = evt.Client.CurrentServer;
-        if (server == null) return;
+        if (server == null)
+            return;
 
         var game = server.GameCode.ToString().ToUpperInvariant();
         bool isT6 = game == "T6";
         bool isT5 = game == "T5";
-        if (!isT6 && !isT5) return;
+        if (!isT6 && !isT5)
+            return;
 
         string demoFolder = isT6 ? _config.T6DemoPath : _config.T5DemoPath;
 
         if (!Directory.Exists(demoFolder))
         {
+            _logger.LogWarning("{Prefix} Demo folder missing → {Path}", LogPrefix, demoFolder);
             await SendNoDemoAsync(server, evt.Penalty, evt.Client, CancellationToken.None);
             return;
         }
@@ -109,8 +117,9 @@ public class DemoUploadService
         string expectedMap = server.Map?.Name ?? "";
         string expectedMode = server.Gametype ?? "";
 
-        _logger.LogWarning("Waiting for demo | Map={Map} | Mode={Mode} | From={Time}",
-            expectedMap, expectedMode, reportTime.ToString("u"));
+        _logger.LogInformation(
+            "{Prefix} Waiting for demo | Map={Map} | Mode={Mode} | From={Time}",
+            LogPrefix, expectedMap, expectedMode, reportTime.ToString("u"));
 
         var found = await WaitForDemoAsync(
             demoFolder,
@@ -122,16 +131,11 @@ public class DemoUploadService
 
         if (found == null)
         {
+            _logger.LogWarning("{Prefix} No demo found within timeout window", LogPrefix);
             await SendNoDemoAsync(server, evt.Penalty, evt.Client, CancellationToken.None);
             return;
         }
 
-        // LONG TASKS — NO TOKEN
-        if (_config.Debug)
-        {
-            _logger.LogWarning(
-                "Debug: Demo found, waiting for match end and file finalisation...");
-        }
         await WaitForMapChangeAsync(server);
         await Task.Delay(TimeSpan.FromSeconds(_config.PostMatchDelaySeconds));
 
@@ -139,8 +143,14 @@ public class DemoUploadService
         if (!string.IsNullOrEmpty(found.Value.jsonPath))
             await WaitForFileReady(found.Value.jsonPath!);
 
-        await UploadAsync(found.Value.demoPath, found.Value.jsonPath,
-            server, evt.Penalty, evt.Client, expectedMap, CancellationToken.None);
+        await UploadAsync(
+            found.Value.demoPath,
+            found.Value.jsonPath,
+            server,
+            evt.Penalty,
+            evt.Client,
+            expectedMap,
+            CancellationToken.None);
     }
 
     // -----------------------------
@@ -157,7 +167,9 @@ public class DemoUploadService
             string currentMap = server.Map?.Name ?? "UNKNOWN";
             if (currentMap != initialMap)
             {
-                _logger.LogWarning("Match ended → new map: {Map}", currentMap);
+                _logger.LogInformation(
+                    "{Prefix} Match ended → new map: {Map}",
+                    LogPrefix, currentMap);
                 return;
             }
         }
@@ -207,24 +219,21 @@ public class DemoUploadService
             .Where(x => x.Meta != null)
             .Where(x =>
             {
-                // Map must match
                 if (!x.Meta!.Map.Contains(expectedMap, StringComparison.OrdinalIgnoreCase))
                     return false;
 
-                // Mode must match (tdm, sd, dom etc)
                 if (!string.IsNullOrWhiteSpace(expectedMode) &&
                     !x.Meta.Mode.Equals(expectedMode, StringComparison.OrdinalIgnoreCase))
                     return false;
 
-                // Time window: demo start must be BEFORE report,
-                // and not older than MaxLookbackMinutes
                 var delta = (reportTime - x.Meta.StartTime).TotalMinutes;
                 return delta >= 0 && delta <= _config.MaxLookbackMinutes;
             })
             .OrderByDescending(x => x.File.LastWriteTimeUtc)
             .FirstOrDefault();
 
-        if (valid == null) return (null!, null);
+        if (valid == null)
+            return (null!, null);
 
         string? json = null;
 
@@ -235,12 +244,15 @@ public class DemoUploadService
                 json = j;
         }
 
-        _logger.LogWarning("Demo selected -> {File}", valid.File.FullName);
+        _logger.LogInformation(
+            "{Prefix} Demo selected → {File}",
+            LogPrefix, valid.File.FullName);
+
         return (valid.File.FullName, json);
     }
 
     // -----------------------------
-    // FILENAME PARSER 
+    // FILENAME PARSER  (FIXED / PRESENT)
     // -----------------------------
     private DemoFileMeta? ParseFilename(string name)
     {
@@ -255,7 +267,6 @@ public class DemoUploadService
             int len = parts.Length;
 
             var mode = parts[0];
-            // join everything between index 1 and the last 5 numeric parts
             var map = string.Join("_", parts.Skip(1).Take(len - 6));
 
             var month = int.Parse(parts[len - 5]);
@@ -298,70 +309,49 @@ public class DemoUploadService
                 var info = new FileInfo(path);
 
                 if (!info.Exists)
-                {
-                    if (_config.Debug)
-                        _logger.LogWarning("Debug: File does not exist yet -> {Path}", path);
                     continue;
-                }
 
                 if (info.Length == 0)
-                {
-                    if (_config.Debug)
-                        _logger.LogWarning("Debug: File exists but is 0 KB -> {Path}", path);
                     continue;
-                }
 
                 if (info.Length != lastSize)
                 {
-                    if (_config.Debug)
-                        _logger.LogWarning(
-                            "Debug: File still growing -> {Path} ({Old} → {New} bytes)",
-                            path, lastSize, info.Length);
-
                     lastSize = info.Length;
                     continue;
                 }
 
-                using var stream = File.Open(
-                    path,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.None);
-
-                if (_config.Debug)
-                    _logger.LogWarning("Debug: File ready -> {Path}", path);
-
+                using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.None);
                 return;
             }
-            catch (IOException)
-            {
-                if (_config.Debug)
-                    _logger.LogWarning("Debug: File locked, retrying -> {Path}", path);
-            }
+            catch (IOException) { }
         }
 
-        if (_config.Debug)
-            _logger.LogWarning("Debug: Timed out waiting for file -> {Path}", path);
+        _logger.LogWarning("{Prefix} Timed out waiting for file → {Path}", LogPrefix, path);
     }
 
-
-
     // -----------------------------
-    // UPLOAD TO DISCORD 
+    // UPLOAD TO DISCORD
     // -----------------------------
     private async Task UploadAsync(
-    string demoPath,
-    string? jsonPath,
-    IGameServer server,
-    EFPenalty penalty,
-    EFClient target,
-    string mapAtReport,
-    CancellationToken _)
+        string demoPath,
+        string? jsonPath,
+        IGameServer server,
+        EFPenalty penalty,
+        EFClient target,
+        string mapAtReport,
+        CancellationToken _)
     {
         try
         {
-            string temp = Path.Combine(Path.GetTempPath(), Path.GetFileName(demoPath));
-            File.Copy(demoPath, temp, true);
+            string tempDemoPath = Path.Combine(Path.GetTempPath(), Path.GetFileName(demoPath));
+            File.Copy(demoPath, tempDemoPath, true);
+
+            string? tempJsonPath = null;
+            if (!string.IsNullOrEmpty(jsonPath) && File.Exists(jsonPath))
+            {
+                tempJsonPath = Path.Combine(Path.GetTempPath(), Path.GetFileName(jsonPath));
+                File.Copy(jsonPath, tempJsonPath, true);
+            }
 
             var embed = BuildEmbed(server, penalty, target, true, mapAtReport);
             var payload = new { embeds = new[] { embed } };
@@ -373,34 +363,63 @@ public class DemoUploadService
                 "payload_json"
             );
 
-            // ✅ DO NOT wrap these streams in using
-            var demoStream = File.OpenRead(temp);
+            var demoStream = File.OpenRead(tempDemoPath);
             var demoContent = new StreamContent(demoStream);
             demoContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-            form.Add(demoContent, "files[0]", Path.GetFileName(temp));
+            form.Add(demoContent, "files[0]", Path.GetFileName(tempDemoPath));
 
-            if (!string.IsNullOrEmpty(jsonPath) && File.Exists(jsonPath))
+            if (!string.IsNullOrEmpty(tempJsonPath))
             {
-                var js = File.OpenRead(jsonPath);
-                var jc = new StreamContent(js);
-                jc.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-                form.Add(jc, "files[1]", Path.GetFileName(jsonPath));
+                var jsonStream = File.OpenRead(tempJsonPath);
+                var jsonContent = new StreamContent(jsonStream);
+                jsonContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+                form.Add(jsonContent, "files[1]", Path.GetFileName(tempJsonPath));
             }
 
             var response = await _http.PostAsync(_config.Webhook, form, CancellationToken.None);
-            var body = await response.Content.ReadAsStringAsync();
 
-            _logger.LogWarning("Discord response → {Status} | {Body}", response.StatusCode, body);
+            _logger.LogInformation(
+                "{Prefix} Discord upload completed → {Status}",
+                LogPrefix, response.StatusCode);
 
-            // ✅ SAFE: disposing `form` disposes ALL streams
-            File.Delete(temp);
+            ScheduleTempCleanup(tempDemoPath, tempJsonPath);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "UploadAsync failed.");
+            _logger.LogError(ex, "{Prefix} UploadAsync failed", LogPrefix);
         }
     }
 
+    // -----------------------------
+    // TEMP CLEANUP (NULLABLE FIXED)
+    // -----------------------------
+    private void ScheduleTempCleanup(string demoPath, string? jsonPath)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10));
+                TryDeleteFile(demoPath);
+                TryDeleteFile(jsonPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "{Prefix} Temp file cleanup failed", LogPrefix);
+            }
+        });
+    }
+
+    private void TryDeleteFile(string? path)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                File.Delete(path);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
 
     // -----------------------------
     // NO DEMO
@@ -440,49 +459,31 @@ public class DemoUploadService
             ? $"{baseUrl}/Client/Profile/{target.ClientId}"
             : "Unavailable";
 
-        string version = System.Reflection.Assembly
-            .GetExecutingAssembly()
-            .GetName()
-            .Version?
-            .ToString() ?? "DEV";
+        string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "DEV";
 
         return new
         {
             title = "🎬 Demo Uploaded for New Report",
-            description =
-                $"**Target Player:** `{suspect}`\n" +
-                $"**Reported By:** `{reporter}`",
-
+            description = $"**Target Player:** `{suspect}`\n**Reported By:** `{reporter}`",
             timestamp = DateTime.UtcNow.ToString("o"),
-
             color = 3066993,
-
-            footer = new
-            {
-                text = $"DemosToDiscord v{version}"
-            },
-
+            footer = new { text = $"DemosToDiscord v{version}" },
             fields = new[]
             {
-            new { name = "🖥 Server", value = $"**{server.ServerName.StripColors()}**", inline = false },
-
-            new { name = "🎮 Game", value = game, inline = true },
-            new { name = "🗺 Map", value = map, inline = true },
-
-            new { name = "👤 Player GUID", value = $"`{guid}`", inline = false },
-
-            new { name = "🔗 Player Profile", value = $"[View Profile]({profileUrl})", inline = false },
-
-            new
-            {
-                name = "📎 Demo Status",
-                value = hasDemo ? "✅ Demo file successfully attached" : "❌ No demo file found",
-                inline = false
+                new { name = "🖥 Server", value = $"**{server.ServerName.StripColors()}**", inline = false },
+                new { name = "🎮 Game", value = game, inline = true },
+                new { name = "🗺 Map", value = map, inline = true },
+                new { name = "👤 Player GUID", value = $"`{guid}`", inline = false },
+                new { name = "🔗 Player Profile", value = $"[View Profile]({profileUrl})", inline = false },
+                new
+                {
+                    name = "📎 Demo Status",
+                    value = hasDemo ? "✅ Demo file successfully attached" : "❌ No demo file found",
+                    inline = false
+                }
             }
-        }
         };
     }
-
 
     private class DemoFileMeta
     {
