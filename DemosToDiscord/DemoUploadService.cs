@@ -113,7 +113,7 @@ public class DemoUploadService
             return;
         }
 
-        DateTime reportTime = DateTime.UtcNow;
+        DateTime reportTime = DateTime.Now;
         string expectedMap = server.Map?.Name ?? "";
         string expectedMode = server.Gametype ?? "";
 
