@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using SharedLibraryCore;
-using SharedLibraryCore.Configuration;
 using SharedLibraryCore.Events.Management;
 using SharedLibraryCore.Interfaces;
 using SharedLibraryCore.Interfaces.Events;
@@ -17,7 +16,7 @@ public class Plugin : IPluginV2
 
     public string Name => "DemosToDiscord";
     public string Author => "OllyMc27";
-    public string Version => "1.1.2.1";
+    public string Version => "1.1.2.2";
 
     public Plugin(DemoUploadService demoService, DemosToDiscordConfig config)
     {
@@ -38,20 +37,25 @@ public class Plugin : IPluginV2
     public static void RegisterDependencies(IServiceCollection services)
     {
         services.AddSingleton<DemoUploadService>();
-        services.AddConfiguration("DemosToDiscord", new DemosToDiscordConfig());
+        services.AddConfiguration<DemosToDiscordConfig>("DemosToDiscord", new DemosToDiscordConfig());
     }
 
     private static void EnsureConfigUpToDate(DemosToDiscordConfig config)
     {
         var defaults = new DemosToDiscordConfig();
-        bool updated = false;
+        var updated = false;
 
         foreach (var prop in typeof(DemosToDiscordConfig).GetProperties())
         {
+            if (!prop.CanRead || !prop.CanWrite)
+            {
+                continue;
+            }
+
             var currentValue = prop.GetValue(config);
             var defaultValue = prop.GetValue(defaults);
 
-            if (currentValue == null)
+            if (currentValue is null)
             {
                 prop.SetValue(config, defaultValue);
                 updated = true;
@@ -59,8 +63,8 @@ public class Plugin : IPluginV2
             }
 
             if (prop.PropertyType == typeof(string) &&
-                string.IsNullOrWhiteSpace((string)currentValue) &&
-                !string.IsNullOrWhiteSpace((string?)defaultValue))
+                string.IsNullOrWhiteSpace(currentValue as string) &&
+                !string.IsNullOrWhiteSpace(defaultValue as string))
             {
                 prop.SetValue(config, defaultValue);
                 updated = true;
@@ -75,18 +79,24 @@ public class Plugin : IPluginV2
 
     private async Task OnLoad(IManager manager, CancellationToken token)
     {
-        Console.WriteLine($"[{Name}] by OllyMc27 loaded. Version: {Version}");
+        Console.WriteLine($"[{Name}] by {Author} loaded. Version: {Version}");
 
         if (_config.Debug)
         {
-            Console.WriteLine($"[{Name}] Debug enabled — sending Discord startup test...");
+            Console.WriteLine($"[{Name}] Debug enabled - sending Discord startup test...");
             await _demoService.SendStartupMessageAsync(token);
             Console.WriteLine($"[{Name}] Discord startup test complete.");
         }
     }
 
-    private async Task OnClientPenaltyAdministered(ClientPenaltyEvent penaltyEvent, CancellationToken token)
+    private Task OnClientPenaltyAdministered(ClientPenaltyEvent penaltyEvent, CancellationToken token)
     {
-        await _demoService.HandlePenaltyAsync(penaltyEvent, token);
+        return _demoService.HandlePenaltyAsync(penaltyEvent, token);
+    }
+
+    public void Dispose()
+    {
+        IManagementEventSubscriptions.ClientPenaltyAdministered -= OnClientPenaltyAdministered;
+        IManagementEventSubscriptions.Load -= OnLoad;
     }
 }
