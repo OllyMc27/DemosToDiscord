@@ -6,11 +6,11 @@
 		<Nullable>enable</Nullable>
 
 		<!-- Plugin Version -->
-		<Version>1.1.2.3</Version>
+		<Version>1.1.2.4</Version>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="RaidMax.IW4MAdmin.SharedLibraryCore" Version="2025.12.24.1" />
+		<PackageReference Include="RaidMax.IW4MAdmin.SharedLibraryCore" Version="2026.1.6.1" />
 	</ItemGroup>
 
 </Project>

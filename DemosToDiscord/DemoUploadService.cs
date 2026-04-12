@@ -113,13 +113,13 @@ public class DemoUploadService
             return;
         }
 
-        DateTime reportTime = DateTime.Now;
+        DateTime reportTime = DateTime.UtcNow;
         string expectedMap = server.Map?.Name ?? "";
         string expectedMode = server.Gametype ?? "";
 
         _logger.LogInformation(
-            "{Prefix} Waiting for demo | Map={Map} | Mode={Mode} | From={Time}",
-            LogPrefix, expectedMap, expectedMode, reportTime.ToString("u"));
+            "{Prefix} Waiting for demo | Game={Game} | Map={Map} | Mode={Mode} | From={Time} | Folder={Folder}",
+            LogPrefix, game, expectedMap, expectedMode, reportTime.ToString("u"), demoFolder);
 
         var found = await WaitForDemoAsync(
             demoFolder,
@@ -173,6 +173,10 @@ public class DemoUploadService
                 return;
             }
         }
+
+        _logger.LogInformation(
+            "{Prefix} Map did not change within wait window, continuing anyway.",
+            LogPrefix);
     }
 
     // -----------------------------
@@ -213,10 +217,29 @@ public class DemoUploadService
     {
         var files = Directory.GetFiles(folder, "*.demo");
 
-        var valid = files
+        var candidates = files
             .Select(f => new FileInfo(f))
             .Select(f => new { File = f, Meta = ParseFilename(f.Name) })
             .Where(x => x.Meta != null)
+            .ToList();
+
+        if (_config.Debug)
+        {
+            foreach (var item in candidates)
+            {
+                var delta = (item.Meta!.StartTime - reportTime).TotalMinutes;
+                _logger.LogInformation(
+                    "{Prefix} Candidate demo → File={File} | ParsedMap={Map} | ParsedMode={Mode} | ParsedTime={Time:u} | DeltaMinutes={Delta}",
+                    LogPrefix,
+                    item.File.Name,
+                    item.Meta.Map,
+                    item.Meta.Mode,
+                    item.Meta.StartTime,
+                    Math.Round(delta, 2));
+            }
+        }
+
+        var valid = candidates
             .Where(x =>
             {
                 if (!x.Meta!.Map.Contains(expectedMap, StringComparison.OrdinalIgnoreCase))
@@ -226,14 +249,24 @@ public class DemoUploadService
                     !x.Meta.Mode.Equals(expectedMode, StringComparison.OrdinalIgnoreCase))
                     return false;
 
-                var delta = (reportTime - x.Meta.StartTime).TotalMinutes;
-                return delta >= 0 && delta <= _config.MaxLookbackMinutes;
+                // Accept demos close to the report time in either direction.
+                var delta = Math.Abs((x.Meta.StartTime - reportTime).TotalMinutes);
+                return delta <= _config.MaxLookbackMinutes;
             })
             .OrderByDescending(x => x.File.LastWriteTimeUtc)
             .FirstOrDefault();
 
         if (valid == null)
+        {
+            if (_config.Debug)
+            {
+                _logger.LogInformation(
+                    "{Prefix} No valid demo match found for Map={Map} Mode={Mode} ReportTime={Time:u}",
+                    LogPrefix, expectedMap, expectedMode, reportTime);
+            }
+
             return (null!, null);
+        }
 
         string? json = null;
 
@@ -252,7 +285,7 @@ public class DemoUploadService
     }
 
     // -----------------------------
-    // FILENAME PARSER  (FIXED / PRESENT)
+    // FILENAME PARSER
     // -----------------------------
     private DemoFileMeta? ParseFilename(string name)
     {
@@ -391,7 +424,7 @@ public class DemoUploadService
     }
 
     // -----------------------------
-    // TEMP CLEANUP (NULLABLE FIXED)
+    // TEMP CLEANUP
     // -----------------------------
     private void ScheduleTempCleanup(string demoPath, string? jsonPath)
     {
@@ -454,7 +487,7 @@ public class DemoUploadService
         string game = server.GameCode.ToString();
         string guid = target.NetworkId.ToString();
 
-        string baseUrl = _appConfig.ManualWebfrontUrl?.TrimEnd('/') ?? "";
+        string baseUrl = _appConfig.Webfront?.ManualUrl?.TrimEnd('/') ?? "";
         string profileUrl = !string.IsNullOrWhiteSpace(baseUrl)
             ? $"{baseUrl}/Client/Profile/{target.ClientId}"
             : "Unavailable";
