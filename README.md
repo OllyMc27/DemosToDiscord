@@ -1,100 +1,84 @@
-﻿[![Version](https://img.shields.io/github/v/release/OllyMc27/DemosToDiscord?label=version&style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/releases)
-
 # DemosToDiscord
 
-Automatically uploads Plutonium demo files to Discord when a player is reported in IW4MAdmin.
+[![Release](https://img.shields.io/github/v/release/OllyMc27/DemosToDiscord?style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/OllyMc27/DemosToDiscord/ci.yml?branch=master&style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/actions)
+[![License](https://img.shields.io/github/license/OllyMc27/DemosToDiscord?style=flat-square)](LICENSE)
 
-This plugin is intended to work **alongside existing IW4MAdmin → Discord bridge plugins**, such as:
+An [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin) plugin that turns player reports and automated anti-cheat bans into organised evidence cases with Discord demo delivery and a webfront review workflow.
 
-- [**BetterIW4ToDiscord**](https://github.com/Ayymoss/BetterIW4ToDiscord)
-- [**YADB – Yet Another Discord Bridge**](https://forum.awog.at/topic/89/release-yadb-yet-another-discord-bridge)
+![Completed evidence review in Discord](docs/images/discord-evidence-review.png)
 
-Those plugins handle chat, reports, and general events.  
-**DemosToDiscord focuses purely on attaching the actual demo files** to Discord when a report happens.
+## Features
 
-The goal is to remove the manual work for staff — no hunting through demo folders, no guessing which file is correct.
+### Evidence collection
 
----
+- Uploads T5 and T6 `.demo` files directly to Discord, without ZIP archives.
+- Captures T6 automated anti-cheat bans even when nobody reports the player.
+- Groups reports, automated detections and observed manual bans from the same match into one case.
+- Uses T6 JSON metadata to confirm the target GUID when available.
+- Keeps T4, IW5 and T5 Zombies reports as metadata-only cases where demo recording is unavailable.
+- Uses a background queue with deduplication, retries and stable-file checks.
 
-## ✅ Features
+### Webfront review
 
-- Supports **T5 (Black Ops 1)** and **T6 (Black Ops 2)**
-- Automatically locates the correct demo based on:
-  - Report time
-  - Map name
-  - Game mode
-- Handles busy servers and overlapping matches correctly
-- Waits for the match to finish and the demo file to unlock before uploading
-- Uploads:
-  - `.demo` files
-  - Optional T6 `.json` metadata files when available
-- Simple drop-in installation
+- Adds a permission-protected **Admin → Demo Evidence** dashboard and detailed case page.
+- Supports player/case search and filters for game, server, source, demo state, review state and date.
+- Includes unassigned and assigned-to-me queues for shared admin teams.
+- Shows match details, reports, demo downloads, game statistics, anti-cheat metrics and event snapshots.
+- Adds evidence confidence, case activity history and previous retained cases for the same player.
+- Reuses IW4MAdmin's native profile, statistics, Ban, Kick, Flag and Add Note actions.
+- Records review outcomes, reviewer notes and case-scoped report clearing.
 
----
+### Discord integration
 
-## 📸 Example Discord Messages
+- Sends compact evidence embeds with direct links to the case and player profile.
+- Keeps Discord attachments downloadable through fresh CDN links in the webfront.
+- Updates the original Discord message when a case is assigned or reviewed.
+- Supports default, per-game and per-server webhooks plus optional restricted role notifications.
 
-Below are real examples of what the plugin posts into Discord.
+Only case metadata and review history are retained by the plugin; demo contents are not copied into its state file, and webhook secrets are never displayed or stored there.
 
----
+## Installation
 
-### ✅ Demo Successfully Uploaded
+1. Download `DemosToDiscord.dll` from the [latest release](https://github.com/OllyMc27/DemosToDiscord/releases/latest).
+2. Copy it into `IW4MAdmin/Plugins`, replacing any older version.
+3. Restart IW4MAdmin and edit `Configuration/DemosToDiscord.json`.
+4. Set `Webhook`, `T5DemoPath` and `T6DemoPath`, then restart IW4MAdmin again.
 
-> When a matching demo file is found, it is automatically uploaded with full context for staff to review.
+Moderators can then open **Admin → Demo Evidence**. Set IW4MAdmin's `Webfront.ManualUrl` to its public address to include working case links in Discord.
 
-![Demo Uploaded Example](docs/example-demo-upload.png)
-
-Includes:
-- Server and game
-- Map at report-time
-- Reporter and reported player
-- Player GUID
-- Web profile link
-- Attached demo file(s)
-- Plugin version and timestamp
-
----
-
-### ⚠ No Demo Found
-
-> If no demo is found within the configured window, the report is still posted so staff are aware.
-
-![No Demo Example](docs/example-no-demo.png)
-
-Includes:
-- Full report context
-- Clear “No demo found” status
-- Same layout and formatting for consistency
-
----
-
-## 🛠 Installation
-
-1. Download the DLL from the **Releases** page
-2. Copy it to: `<IW4MAdmin Root>/IW4MAdmin/Plugins/`
-3. Restart IW4MAdmin
-4. Edit `DemosToDiscord.json`
-5. Add your Discord webhook and demo paths
-6. Restart IW4MAdmin again
-
----
-
-## ⚙ Configuration
-
-Example `DemosToDiscord.json`:
+## Configuration
 
 ```json
 {
-"Webhook": "https://discord.com/api/webhooks/...",
-"T5DemoPath": "C:\\Users\\Administrator\\AppData\\Local\\Plutonium\\storage\\t5\\demos",
-"T6DemoPath": "C:\\Users\\Administrator\\AppData\\Local\\Plutonium\\storage\\t6\\demos",
-
-"MaxLookbackMinutes": 90,
-"MaxWaitMinutes": 30,
-"RetryIntervalSeconds": 20,
-"PostMatchDelaySeconds": 10,
-
-"Debug": false,
-"RenameOnUpload": true
+  "Enabled": true,
+  "Webhook": "https://discord.com/api/webhooks/...",
+  "T5DemoPath": "C:\\Plutonium\\storage\\t5\\demos",
+  "T6DemoPath": "C:\\Plutonium\\storage\\t6\\demos",
+  "UploadOnReports": true,
+  "UploadOnAutomatedBans": true,
+  "AutomatedBanGames": [ "T6" ],
+  "EnableWebfrontDashboard": true,
+  "WebfrontMinimumPermission": "Moderator",
+  "SendMetadataOnlyCasesToDiscord": true
 }
- 
+```
+
+The [complete configuration example](examples/DemosToDiscord.json) documents queue timing, retention, demo-capability overrides, per-game/server webhooks and optional Discord role IDs. Server overrides can use an endpoint, legacy server ID or `"*"` fallback.
+
+## Admin commands
+
+| Command | Permission | Purpose |
+|---|---|---|
+| `!dtdstatus` | Moderator | Show queue and configuration status |
+| `!dtdstats` | Moderator | Show evidence totals |
+| `!dtdfind <case-id>` | Moderator | Preview the best current demo match |
+| `!dtdtest` | SeniorAdmin | Test the default Discord webhook |
+| `!dtdretry <case-id>` | SeniorAdmin | Requeue a failed or missing-demo case |
+
+Case metadata is saved to `Configuration/DemosToDiscordCases.json`. Clearing reports affects only matching penalties attached to that evidence case.
+
+## License
+
+[MIT](LICENSE)
+

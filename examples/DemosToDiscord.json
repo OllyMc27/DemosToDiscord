@@ -1,0 +1,58 @@
+{
+  "Enabled": true,
+  "Webhook": "https://discord.com/api/webhooks/WEBHOOK_ID/WEBHOOK_TOKEN",
+  "T5DemoPath": "C:\\Users\\Administrator\\AppData\\Local\\Plutonium\\storage\\t5\\demos",
+  "T6DemoPath": "C:\\Users\\Administrator\\AppData\\Local\\Plutonium\\storage\\t6\\demos",
+  "UploadOnReports": true,
+  "UploadOnAutomatedBans": true,
+  "UploadOnManualBans": false,
+  "AutomatedBanGames": [
+    "T6"
+  ],
+  "SupportedDemoGames": [
+    "T5",
+    "T6"
+  ],
+  "T5ZombieMapPrefixes": [
+    "zombie_"
+  ],
+  "T5ZombieModes": [
+    "zclassic",
+    "zstandard",
+    "zombie"
+  ],
+  "MaxLookbackMinutes": 90,
+  "MaxWaitMinutes": 30,
+  "RetryIntervalSeconds": 10,
+  "PostMatchDelaySeconds": 10,
+  "FileStableChecks": 3,
+  "MaxConcurrentUploads": 2,
+  "DeduplicationWindowMinutes": 120,
+  "RenameOnUpload": true,
+  "EnableWebfrontDashboard": true,
+  "WebfrontMinimumPermission": "Moderator",
+  "StoreReportReasons": true,
+  "CaseRetentionDays": 90,
+  "MaxStoredCases": 500,
+  "StateFilePath": "Configuration/DemosToDiscordCases.json",
+  "SendMetadataOnlyCasesToDiscord": true,
+  "ReportRoleId": "",
+  "AntiCheatRoleId": "",
+  "MentionRolesOnlyWhenDemoReady": false,
+  "GameWebhooks": {
+    "T5": "",
+    "T6": ""
+  },
+  "Debug": false,
+  "ServerOverrides": {
+    "127.0.0.1:28960": {
+      "DemoPath": "D:\\Plutonium\\storage\\t6\\demos",
+      "Webhook": "https://discord.com/api/webhooks/OPTIONAL_SERVER_WEBHOOK",
+      "SupportsDemos": true,
+      "SendMetadataOnlyCasesToDiscord": true,
+      "ReportRoleId": "",
+      "AntiCheatRoleId": ""
+    }
+  }
+}
+

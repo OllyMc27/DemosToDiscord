@@ -62,6 +62,7 @@ BenchmarkDotNet.Artifacts/
 project.lock.json
 project.fragment.lock.json
 artifacts/
+.artifacts/
 
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
@@ -353,6 +354,9 @@ ASALocalRun/
 # BeatPulse healthcheck temp database
 healthchecksdb
 
+# Local Codex/.NET restore scratch data
+.scratch-appdata/
+
 # Backup folder for Package Reference Convert tool in Visual Studio 2017
 MigrationBackup/
 
@@ -361,3 +365,4 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+

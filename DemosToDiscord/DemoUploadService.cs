@@ -1,527 +1,434 @@
-﻿using Data.Models;
+using System.Threading.Channels;
+using Data.Models;
 using Microsoft.Extensions.Logging;
 using SharedLibraryCore;
-using SharedLibraryCore.Configuration;
-using SharedLibraryCore.Database.Models;
 using SharedLibraryCore.Events.Management;
-using SharedLibraryCore.Interfaces;
-using System;
-using System.IO;
-using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Reflection;
-using System.Text;
-using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace DemosToDiscord;
 
-public class DemoUploadService
+public sealed class DemoUploadService : IDisposable
 {
-    private const string LogPrefix = "[DemosToDiscord]";
-
     private readonly DemosToDiscordConfig _config;
-    private readonly ApplicationConfiguration _appConfig;
+    private readonly EvidenceCaseStore _store;
+    private readonly DemoLocator _locator;
+    private readonly DiscordWebhookClient _discord;
     private readonly ILogger<DemoUploadService> _logger;
-    private readonly HttpClient _http;
+    private readonly Channel<string> _queue = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
+    {
+        SingleReader = false,
+        SingleWriter = false
+    });
+    private readonly CancellationTokenSource _shutdown = new();
+    private readonly List<Task> _workers = [];
+    private bool _started;
 
     public DemoUploadService(
         DemosToDiscordConfig config,
-        ApplicationConfiguration appConfig,
+        EvidenceCaseStore store,
+        DemoLocator locator,
+        DiscordWebhookClient discord,
         ILogger<DemoUploadService> logger)
     {
         _config = config;
-        _appConfig = appConfig;
+        _store = store;
+        _locator = locator;
+        _discord = discord;
         _logger = logger;
-
-        _http = new HttpClient
-        {
-            Timeout = TimeSpan.FromMinutes(10)
-        };
-        _http.DefaultRequestHeaders.Add("User-Agent", "DemosToDiscord");
     }
 
-    // -----------------------------
-    // STARTUP MESSAGE
-    // -----------------------------
-    public async Task SendStartupMessageAsync(CancellationToken token)
+    public async Task StartAsync(CancellationToken token)
     {
-        try
+        if (_started)
+            return;
+        _started = true;
+        await _store.InitializeAsync(token);
+        for (var index = 0; index < Math.Max(1, _config.MaxConcurrentUploads); index++)
+            _workers.Add(Task.Run(() => WorkerAsync(_shutdown.Token), _shutdown.Token));
+
+        var interruptedCases = _store.Snapshot().Cases
+            .Where(item => item.Status is EvidenceCaseStatus.Queued or EvidenceCaseStatus.Searching or
+                EvidenceCaseStatus.WaitingForDemo or EvidenceCaseStatus.Uploading)
+            .ToList();
+        foreach (var evidenceCase in interruptedCases)
         {
-            if (string.IsNullOrWhiteSpace(_config.Webhook))
-            {
-                _logger.LogWarning("{Prefix} Webhook empty — startup skipped.", LogPrefix);
-                return;
-            }
-
-            var payload = new
-            {
-                content = "✅ **DemosToDiscord Loaded**\nDiscord API Test Complete."
-            };
-
-            var content = new StringContent(
-                JsonSerializer.Serialize(payload),
-                Encoding.UTF8,
-                "application/json");
-
-            var response = await _http.PostAsync(_config.Webhook, content, CancellationToken.None);
-
-            _logger.LogInformation(
-                "{Prefix} Startup message sent → {Status}",
-                LogPrefix, response.StatusCode);
+            await _store.UpdateAsync(evidenceCase.Id, item => item.Status = EvidenceCaseStatus.Queued, token);
+            await _queue.Writer.WriteAsync(evidenceCase.Id, token);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "{Prefix} Startup message failed", LogPrefix);
-        }
+
+        if (interruptedCases.Count > 0)
+            _logger.LogInformation("[DemosToDiscord] Resumed {Count} interrupted evidence case(s)", interruptedCases.Count);
     }
 
-    // -----------------------------
-    // ENTRY
-    // -----------------------------
     public async Task HandlePenaltyAsync(ClientPenaltyEvent evt, CancellationToken token)
     {
-        _logger.LogInformation(
-            "{Prefix} REPORT EVENT FIRED for {Client}",
-            LogPrefix,
-            evt.Client?.CurrentAlias?.Name ?? "UNKNOWN");
-
-        if (evt.Client == null)
-            return;
-
-        if (evt.Penalty.Type != EFPenalty.PenaltyType.Report)
+        if (!_config.Enabled || evt.Client?.CurrentServer is null)
             return;
 
         var server = evt.Client.CurrentServer;
-        if (server == null)
-            return;
-
         var game = server.GameCode.ToString().ToUpperInvariant();
-        bool isT6 = game == "T6";
-        bool isT5 = game == "T5";
-        if (!isT6 && !isT5)
+        var serverOverride = ResolveOverride(server.Id, server.LegacyDatabaseId);
+        if (serverOverride?.Enabled == false)
             return;
 
-        string demoFolder = isT6 ? _config.T6DemoPath : _config.T5DemoPath;
-
-        if (!Directory.Exists(demoFolder))
+        var automatedOffense = evt.Penalty.AutomatedOffense;
+        if (string.IsNullOrWhiteSpace(automatedOffense))
         {
-            _logger.LogWarning("{Prefix} Demo folder missing → {Path}", LogPrefix, demoFolder);
-            await SendNoDemoAsync(server, evt.Penalty, evt.Client, CancellationToken.None);
-            return;
+            automatedOffense = evt.Penalty.Punisher?.AdministeredPenalties?
+                .Select(item => item.AutomatedOffense)
+                .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item));
         }
 
-        DateTime reportTime = DateTime.UtcNow;
-        string expectedMap = server.Map?.Name ?? "";
-        string expectedMode = server.Gametype ?? "";
-
-        _logger.LogInformation(
-            "{Prefix} Waiting for demo | Game={Game} | Map={Map} | Mode={Mode} | From={Time} | Folder={Folder}",
-            LogPrefix, game, expectedMap, expectedMode, reportTime.ToString("u"), demoFolder);
-
-        var found = await WaitForDemoAsync(
-            demoFolder,
-            isT6,
-            reportTime,
-            expectedMap,
-            expectedMode,
-            token);
-
-        if (found == null)
-        {
-            _logger.LogWarning("{Prefix} No demo found within timeout window", LogPrefix);
-            await SendNoDemoAsync(server, evt.Penalty, evt.Client, CancellationToken.None);
+        var trigger = ResolveTrigger(evt.Penalty, automatedOffense, game, serverOverride);
+        if (trigger is null)
             return;
-        }
 
-        await WaitForMapChangeAsync(server);
-        await Task.Delay(TimeSpan.FromSeconds(_config.PostMatchDelaySeconds));
+        var capture = new PenaltyCapture(
+            trigger.Value,
+            evt.Penalty.When == default ? DateTime.UtcNow : evt.Penalty.When.ToUniversalTime(),
+            server.Id,
+            server.ServerName.StripColors(),
+            server.LegacyDatabaseId,
+            game,
+            server.Map?.Name ?? "Unknown",
+            server.Gametype ?? "Unknown",
+            evt.Client.ClientId,
+            evt.Client.NetworkId,
+            evt.Client.CurrentAlias?.Name.StripColors() ?? "Unknown",
+            evt.Penalty.Punisher?.ClientId ?? 0,
+            evt.Penalty.Punisher?.CurrentAlias?.Name.StripColors() ??
+            (trigger == EvidenceTriggerType.AutomatedBan ? "IW4MAdmin anti-cheat" : "Unknown"),
+            evt.Penalty.Offense ?? string.Empty,
+            automatedOffense ?? evt.Penalty.Offense ?? string.Empty,
+            evt.Penalty.PenaltyId > 0 ? evt.Penalty.PenaltyId : null);
 
-        await WaitForFileReady(found.Value.demoPath);
-        if (!string.IsNullOrEmpty(found.Value.jsonPath))
-            await WaitForFileReady(found.Value.jsonPath!);
-
-        await UploadAsync(
-            found.Value.demoPath,
-            found.Value.jsonPath,
-            server,
-            evt.Penalty,
-            evt.Client,
-            expectedMap,
-            CancellationToken.None);
-    }
-
-    // -----------------------------
-    // WAIT FOR MAP CHANGE
-    // -----------------------------
-    private async Task WaitForMapChangeAsync(IGameServer server)
-    {
-        string initialMap = server.Map?.Name ?? "UNKNOWN";
-
-        for (int i = 0; i < 180; i++)
+        var result = await _store.AddOrMergeAsync(capture, token);
+        var capability = EvidenceAssessment.DemoCapability(result.Case, _config, serverOverride);
+        await _store.UpdateAsync(result.Case.Id, item =>
         {
-            await Task.Delay(2000);
+            item.DemoSupport = capability.Status;
+            item.DemoSupportReason = capability.Reason;
+        }, token);
+        if (evt.Penalty.PenaltyId > 0 && result.Case.AntiCheat is not null)
+            await _store.UpdateAsync(result.Case.Id, item => item.AntiCheat!.PenaltyId = evt.Penalty.PenaltyId, token);
 
-            string currentMap = server.Map?.Name ?? "UNKNOWN";
-            if (currentMap != initialMap)
+        if (result.NeedsUpload)
+        {
+            await _store.UpdateAsync(result.Case.Id, item =>
             {
-                _logger.LogInformation(
-                    "{Prefix} Match ended → new map: {Map}",
-                    LogPrefix, currentMap);
-                return;
-            }
+                item.Status = EvidenceCaseStatus.Queued;
+                item.LastError = null;
+            }, token);
+            await _queue.Writer.WriteAsync(result.Case.Id, token);
+        }
+        else if (!string.IsNullOrWhiteSpace(result.Case.DiscordMessageId))
+        {
+            await UpdateCaseDiscordAsync(result.Case.Id, token);
         }
 
         _logger.LogInformation(
-            "{Prefix} Map did not change within wait window, continuing anyway.",
-            LogPrefix);
+            "[DemosToDiscord] {Trigger} added to evidence case {CaseId} for {Target} on {Game} {Server}",
+            trigger, result.Case.Id, result.Case.TargetName, game, result.Case.ServerName);
     }
 
-    // -----------------------------
-    // WAIT FOR DEMO
-    // -----------------------------
-    private async Task<(string demoPath, string? jsonPath)?> WaitForDemoAsync(
-        string folder,
-        bool isT6,
-        DateTime reportTimeUtc,
-        string expectedMap,
-        string expectedMode,
-        CancellationToken token)
+    public EvidenceStoreSnapshot GetSnapshot() => _store.Snapshot();
+    public EvidenceCase? GetCase(string id) => _store.Get(id);
+
+    public DemoCandidate? FindCandidate(string caseId)
     {
-        var expire = DateTime.UtcNow.AddMinutes(_config.MaxWaitMinutes);
-
-        while (DateTime.UtcNow < expire && !token.IsCancellationRequested)
-        {
-            var found = FindDemo(folder, isT6, reportTimeUtc, expectedMap, expectedMode);
-
-            if (found.demoPath != null)
-                return found;
-
-            await Task.Delay(TimeSpan.FromSeconds(_config.RetryIntervalSeconds), token);
-        }
-
-        return null;
-    }
-
-    // -----------------------------
-    // DEMO FILTER LOGIC
-    // -----------------------------
-    private (string demoPath, string? jsonPath) FindDemo(
-        string folder,
-        bool isT6,
-        DateTime reportTime,
-        string expectedMap,
-        string expectedMode)
-    {
-        var files = Directory.GetFiles(folder, "*.demo");
-
-        var candidates = files
-            .Select(f => new FileInfo(f))
-            .Select(f => new { File = f, Meta = ParseFilename(f.Name) })
-            .Where(x => x.Meta != null)
-            .ToList();
-
-        if (_config.Debug)
-        {
-            foreach (var item in candidates)
-            {
-                var delta = (item.Meta!.StartTime - reportTime).TotalMinutes;
-                _logger.LogInformation(
-                    "{Prefix} Candidate demo → File={File} | ParsedMap={Map} | ParsedMode={Mode} | ParsedTime={Time:u} | DeltaMinutes={Delta}",
-                    LogPrefix,
-                    item.File.Name,
-                    item.Meta.Map,
-                    item.Meta.Mode,
-                    item.Meta.StartTime,
-                    Math.Round(delta, 2));
-            }
-        }
-
-        var valid = candidates
-            .Where(x =>
-            {
-                if (!x.Meta!.Map.Contains(expectedMap, StringComparison.OrdinalIgnoreCase))
-                    return false;
-
-                if (!string.IsNullOrWhiteSpace(expectedMode) &&
-                    !x.Meta.Mode.Equals(expectedMode, StringComparison.OrdinalIgnoreCase))
-                    return false;
-
-                // Accept demos close to the report time in either direction.
-                var delta = Math.Abs((x.Meta.StartTime - reportTime).TotalMinutes);
-                return delta <= _config.MaxLookbackMinutes;
-            })
-            .OrderByDescending(x => x.File.LastWriteTimeUtc)
-            .FirstOrDefault();
-
-        if (valid == null)
-        {
-            if (_config.Debug)
-            {
-                _logger.LogInformation(
-                    "{Prefix} No valid demo match found for Map={Map} Mode={Mode} ReportTime={Time:u}",
-                    LogPrefix, expectedMap, expectedMode, reportTime);
-            }
-
-            return (null!, null);
-        }
-
-        string? json = null;
-
-        if (isT6)
-        {
-            var j = Path.ChangeExtension(valid.File.FullName, ".json");
-            if (File.Exists(j))
-                json = j;
-        }
-
-        _logger.LogInformation(
-            "{Prefix} Demo selected → {File}",
-            LogPrefix, valid.File.FullName);
-
-        return (valid.File.FullName, json);
-    }
-
-    // -----------------------------
-    // FILENAME PARSER
-    // -----------------------------
-    private DemoFileMeta? ParseFilename(string name)
-    {
-        try
-        {
-            var n = Path.GetFileNameWithoutExtension(name);
-            var parts = n.Split('_');
-
-            if (parts.Length < 7)
-                return null;
-
-            int len = parts.Length;
-
-            var mode = parts[0];
-            var map = string.Join("_", parts.Skip(1).Take(len - 6));
-
-            var month = int.Parse(parts[len - 5]);
-            var day = int.Parse(parts[len - 4]);
-            var year = int.Parse(parts[len - 3]);
-            var hour = int.Parse(parts[len - 2]);
-            var minute = int.Parse(parts[len - 1]);
-
-            var start = new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Utc);
-
-            return new DemoFileMeta
-            {
-                Mode = mode,
-                Map = map,
-                StartTime = start
-            };
-        }
-        catch
-        {
+        var evidenceCase = _store.Get(caseId);
+        if (evidenceCase is null || !ResolveDemoCapability(evidenceCase).Supported)
             return null;
+        return _locator.FindBest(evidenceCase, ResolveDemoFolder(evidenceCase));
+    }
+
+    public async Task<bool> RetryAsync(string caseId, CancellationToken token)
+    {
+        if (_store.Get(caseId) is null)
+            return false;
+        await _store.UpdateAsync(caseId, item =>
+        {
+            item.Status = EvidenceCaseStatus.Queued;
+            item.LastError = null;
+        }, token);
+        await _queue.Writer.WriteAsync(caseId, token);
+        return true;
+    }
+
+    public Task TestWebhookAsync(CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(_config.Webhook))
+            throw new InvalidOperationException("Webhook is empty in DemosToDiscord.json.");
+        return _discord.TestAsync(_config.Webhook, token);
+    }
+
+    public string StatusSummary()
+    {
+        var snapshot = _store.Snapshot();
+        return $"DemosToDiscord v2: enabled={_config.Enabled}, queued={snapshot.Queued}, uploaded={snapshot.Uploaded}, no-demo={snapshot.NoDemo}, unsupported={snapshot.Unsupported}, failed={snapshot.Failed}, reports={snapshot.Reports}, auto-bans={snapshot.AutomatedBans}.";
+    }
+
+    private async Task WorkerAsync(CancellationToken token)
+    {
+        try
+        {
+            await foreach (var caseId in _queue.Reader.ReadAllAsync(token))
+                await ProcessAsync(caseId, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
         }
     }
 
-    // -----------------------------
-    // FILE UNLOCK + SIZE STABILITY
-    // -----------------------------
-    private async Task WaitForFileReady(string path)
+    private async Task ProcessAsync(string caseId, CancellationToken token)
     {
-        const int maxAttempts = 60;
-        const int delayMs = 2000;
+        var evidenceCase = _store.Get(caseId);
+        if (evidenceCase is null)
+            return;
 
-        long lastSize = -1;
-
-        for (int i = 0; i < maxAttempts; i++)
+        try
         {
-            await Task.Delay(delayMs);
-
-            try
+            var capability = ResolveDemoCapability(evidenceCase);
+            await _store.UpdateAsync(caseId, item =>
             {
-                var info = new FileInfo(path);
+                item.DemoSupport = capability.Status;
+                item.DemoSupportReason = capability.Reason;
+                item.Attempts++;
+                if (!capability.Supported)
+                    item.Status = EvidenceCaseStatus.DemoUnsupported;
+            }, token);
 
-                if (!info.Exists)
-                    continue;
-
-                if (info.Length == 0)
-                    continue;
-
-                if (info.Length != lastSize)
+            if (!capability.Supported)
+            {
+                evidenceCase = _store.Get(caseId)!;
+                if (!ShouldSendMetadataOnly(evidenceCase))
                 {
-                    lastSize = info.Length;
-                    continue;
+                    await _store.UpdateAsync(caseId, item =>
+                    {
+                        item.Status = EvidenceCaseStatus.DemoUnsupported;
+                        item.LastError = null;
+                    }, token);
+                    return;
                 }
 
-                using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.None);
+                var metadataWebhook = ResolveWebhook(evidenceCase);
+                if (string.IsNullOrWhiteSpace(metadataWebhook))
+                {
+                    await _store.UpdateAsync(caseId, item =>
+                    {
+                        item.Status = EvidenceCaseStatus.DemoUnsupported;
+                        item.LastError = "No Discord webhook is configured; the metadata-only case remains available in the webfront.";
+                    }, token);
+                    return;
+                }
+
+                var unsupportedReceipt = await _discord.SendCaseAsync(
+                    evidenceCase,
+                    metadataWebhook,
+                    null,
+                    null,
+                    ResolveDeliveryOptions(evidenceCase, false),
+                    token);
+                await CompleteAsync(caseId, EvidenceCaseStatus.DemoUnsupported, unsupportedReceipt, null, token);
                 return;
             }
-            catch (IOException) { }
-        }
 
-        _logger.LogWarning("{Prefix} Timed out waiting for file → {Path}", LogPrefix, path);
+            var webhook = ResolveWebhook(evidenceCase);
+            if (string.IsNullOrWhiteSpace(webhook))
+                throw new InvalidOperationException("No Discord webhook is configured for this server.");
+
+            var folder = ResolveDemoFolder(evidenceCase);
+            await _store.UpdateAsync(caseId, item =>
+            {
+                item.Status = EvidenceCaseStatus.Searching;
+            }, token);
+
+            DemoCandidate? candidate = null;
+            if (Directory.Exists(folder))
+                candidate = await _locator.WaitForCandidateAsync(evidenceCase, folder, token);
+
+            if (candidate is null)
+            {
+                evidenceCase = _store.Get(caseId)!;
+                var receipt = await _discord.SendCaseAsync(
+                    evidenceCase,
+                    webhook,
+                    null,
+                    null,
+                    ResolveDeliveryOptions(evidenceCase, false),
+                    token);
+                await CompleteAsync(caseId, EvidenceCaseStatus.NoDemo, receipt, null, token);
+                return;
+            }
+
+            await _store.UpdateAsync(caseId, item => item.Status = EvidenceCaseStatus.WaitingForDemo, token);
+            if (!await _locator.WaitUntilReadyAsync(candidate.DemoPath, token))
+                throw new IOException($"Demo file did not become stable and readable: {candidate.DemoPath}");
+
+            if (_config.PostMatchDelaySeconds > 0)
+                await Task.Delay(TimeSpan.FromSeconds(_config.PostMatchDelaySeconds), token);
+
+            await _store.UpdateAsync(caseId, item => item.Status = EvidenceCaseStatus.Uploading, token);
+            evidenceCase = _store.Get(caseId)!;
+            var receiptWithDemo = await _discord.SendCaseAsync(
+                evidenceCase,
+                webhook,
+                candidate.DemoPath,
+                candidate.JsonPath,
+                ResolveDeliveryOptions(evidenceCase, true),
+                token);
+            await CompleteAsync(caseId, EvidenceCaseStatus.Uploaded, receiptWithDemo, candidate, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "[DemosToDiscord] Evidence case {CaseId} failed", caseId);
+            await _store.UpdateAsync(caseId, item =>
+            {
+                item.Status = EvidenceCaseStatus.Failed;
+                item.LastError = exception.Message;
+            }, CancellationToken.None);
+        }
     }
 
-    // -----------------------------
-    // UPLOAD TO DISCORD
-    // -----------------------------
-    private async Task UploadAsync(
-        string demoPath,
-        string? jsonPath,
-        IGameServer server,
-        EFPenalty penalty,
-        EFClient target,
-        string mapAtReport,
-        CancellationToken _)
+    private Task CompleteAsync(
+        string caseId,
+        EvidenceCaseStatus status,
+        DiscordMessageReceipt receipt,
+        DemoCandidate? candidate,
+        CancellationToken token) => _store.UpdateAsync(caseId, item =>
     {
+        item.Status = status;
+        item.DiscordMessageId = receipt.MessageId;
+        item.DiscordChannelId = receipt.ChannelId;
+        item.DiscordGuildId = receipt.GuildId;
+        item.UploadedAtUtc = DateTime.UtcNow;
+        item.LastError = null;
+        item.DiscordLastSyncedAtUtc = DateTime.UtcNow;
+        item.DiscordSyncError = null;
+        if (candidate is null)
+            return;
+        var info = new FileInfo(candidate.DemoPath);
+        item.DemoFileName = Path.GetFileName(candidate.DemoPath);
+        item.DemoFileSize = info.Exists ? info.Length : null;
+        item.DemoStartedAtUtc = candidate.StartedAtUtc;
+    }, token);
+
+    private EvidenceTriggerType? ResolveTrigger(
+        EFPenalty penalty,
+        string? automatedOffense,
+        string game,
+        DemosToDiscordServerOverride? serverOverride)
+    {
+        if (penalty.Type == EFPenalty.PenaltyType.Report)
+            return (serverOverride?.UploadOnReports ?? _config.UploadOnReports) ? EvidenceTriggerType.Report : null;
+        if (penalty.Type != EFPenalty.PenaltyType.Ban)
+            return null;
+
+        var automated = IsAutomatedBan(penalty, automatedOffense);
+        if (automated)
+        {
+            var gameAllowed = _config.AutomatedBanGames.Any(item => item.Equals(game, StringComparison.OrdinalIgnoreCase));
+            return gameAllowed && (serverOverride?.UploadOnAutomatedBans ?? _config.UploadOnAutomatedBans)
+                ? EvidenceTriggerType.AutomatedBan
+                : null;
+        }
+
+        return (serverOverride?.UploadOnManualBans ?? _config.UploadOnManualBans)
+            ? EvidenceTriggerType.ManualBan
+            : null;
+    }
+
+    internal static bool IsAutomatedBan(EFPenalty penalty, string? automatedOffense) =>
+        penalty.Type == EFPenalty.PenaltyType.Ban &&
+        penalty.PunisherId == 1 &&
+        !string.IsNullOrWhiteSpace(automatedOffense);
+
+    private string ResolveDemoFolder(EvidenceCase evidenceCase)
+    {
+        var serverOverride = ResolveOverride(evidenceCase.ServerId, evidenceCase.LegacyServerId);
+        if (!string.IsNullOrWhiteSpace(serverOverride?.DemoPath))
+            return serverOverride.DemoPath;
+        return evidenceCase.Game.Equals("T6", StringComparison.OrdinalIgnoreCase)
+            ? _config.T6DemoPath
+            : _config.T5DemoPath;
+    }
+
+    internal string ResolveWebhook(EvidenceCase evidenceCase)
+    {
+        var serverOverride = ResolveOverride(evidenceCase.ServerId, evidenceCase.LegacyServerId);
+        if (!string.IsNullOrWhiteSpace(serverOverride?.Webhook))
+            return serverOverride.Webhook;
+        return _config.GameWebhooks.TryGetValue(evidenceCase.Game, out var gameWebhook) &&
+               !string.IsNullOrWhiteSpace(gameWebhook)
+            ? gameWebhook
+            : _config.Webhook;
+    }
+
+    public async Task<bool> UpdateCaseDiscordAsync(string caseId, CancellationToken token)
+    {
+        var evidenceCase = _store.Get(caseId);
+        if (evidenceCase is null || string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId))
+            return false;
+
         try
         {
-            string tempDemoPath = Path.Combine(Path.GetTempPath(), Path.GetFileName(demoPath));
-            File.Copy(demoPath, tempDemoPath, true);
-
-            string? tempJsonPath = null;
-            if (!string.IsNullOrEmpty(jsonPath) && File.Exists(jsonPath))
+            var webhook = ResolveWebhook(evidenceCase);
+            if (string.IsNullOrWhiteSpace(webhook))
+                throw new InvalidOperationException("No Discord webhook is configured for this server.");
+            await _discord.UpdateCaseAsync(evidenceCase, webhook, token);
+            await _store.UpdateAsync(caseId, item =>
             {
-                tempJsonPath = Path.Combine(Path.GetTempPath(), Path.GetFileName(jsonPath));
-                File.Copy(jsonPath, tempJsonPath, true);
-            }
-
-            var embed = BuildEmbed(server, penalty, target, true, mapAtReport);
-            var payload = new { embeds = new[] { embed } };
-
-            using var form = new MultipartFormDataContent();
-
-            form.Add(
-                new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"),
-                "payload_json"
-            );
-
-            var demoStream = File.OpenRead(tempDemoPath);
-            var demoContent = new StreamContent(demoStream);
-            demoContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-            form.Add(demoContent, "files[0]", Path.GetFileName(tempDemoPath));
-
-            if (!string.IsNullOrEmpty(tempJsonPath))
-            {
-                var jsonStream = File.OpenRead(tempJsonPath);
-                var jsonContent = new StreamContent(jsonStream);
-                jsonContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-                form.Add(jsonContent, "files[1]", Path.GetFileName(tempJsonPath));
-            }
-
-            var response = await _http.PostAsync(_config.Webhook, form, CancellationToken.None);
-
-            _logger.LogInformation(
-                "{Prefix} Discord upload completed → {Status}",
-                LogPrefix, response.StatusCode);
-
-            ScheduleTempCleanup(tempDemoPath, tempJsonPath);
+                item.DiscordLastSyncedAtUtc = DateTime.UtcNow;
+                item.DiscordSyncError = null;
+            }, token);
+            return true;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _logger.LogError(ex, "{Prefix} UploadAsync failed", LogPrefix);
+            _logger.LogWarning(exception, "[DemosToDiscord] Could not sync case {CaseId} to Discord", caseId);
+            await _store.UpdateAsync(caseId, item => item.DiscordSyncError = exception.Message, CancellationToken.None);
+            return false;
         }
     }
 
-    // -----------------------------
-    // TEMP CLEANUP
-    // -----------------------------
-    private void ScheduleTempCleanup(string demoPath, string? jsonPath)
+    internal DemoCapability ResolveDemoCapability(EvidenceCase evidenceCase)
     {
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(TimeSpan.FromSeconds(10));
-                TryDeleteFile(demoPath);
-                TryDeleteFile(jsonPath);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "{Prefix} Temp file cleanup failed", LogPrefix);
-            }
-        });
+        var serverOverride = ResolveOverride(evidenceCase.ServerId, evidenceCase.LegacyServerId);
+        return EvidenceAssessment.DemoCapability(evidenceCase, _config, serverOverride);
     }
 
-    private void TryDeleteFile(string? path)
+    private bool ShouldSendMetadataOnly(EvidenceCase evidenceCase)
     {
-        try
-        {
-            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
-                File.Delete(path);
-        }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
+        var serverOverride = ResolveOverride(evidenceCase.ServerId, evidenceCase.LegacyServerId);
+        return serverOverride?.SendMetadataOnlyCasesToDiscord ?? _config.SendMetadataOnlyCasesToDiscord;
     }
 
-    // -----------------------------
-    // NO DEMO
-    // -----------------------------
-    private async Task SendNoDemoAsync(
-        IGameServer server,
-        EFPenalty penalty,
-        EFClient target,
-        CancellationToken _)
+    private DiscordDeliveryOptions ResolveDeliveryOptions(EvidenceCase evidenceCase, bool hasDemo)
     {
-        string mapAtReport = server.Map?.Name ?? "Unknown";
-        var embed = BuildEmbed(server, penalty, target, false, mapAtReport);
-        var payload = new { embeds = new[] { embed } };
-
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        await _http.PostAsync(_config.Webhook, content, CancellationToken.None);
+        var serverOverride = ResolveOverride(evidenceCase.ServerId, evidenceCase.LegacyServerId);
+        var roleId = evidenceCase.AntiCheat is not null
+            ? serverOverride?.AntiCheatRoleId ?? _config.AntiCheatRoleId
+            : serverOverride?.ReportRoleId ?? _config.ReportRoleId;
+        var mention = !string.IsNullOrWhiteSpace(roleId) && (!_config.MentionRolesOnlyWhenDemoReady || hasDemo);
+        return new DiscordDeliveryOptions(roleId, mention);
     }
 
-    // -----------------------------
-    // DISCORD EMBED MESSAGE
-    // -----------------------------
-    private object BuildEmbed(
-        IGameServer server,
-        EFPenalty penalty,
-        EFClient target,
-        bool hasDemo,
-        string mapAtReport)
+    private DemosToDiscordServerOverride? ResolveOverride(string serverId, long? legacyServerId)
     {
-        string reporter = penalty.Punisher?.CurrentAlias?.Name.StripColors() ?? "UNKNOWN";
-        string suspect = target.CurrentAlias?.Name.StripColors() ?? "UNKNOWN";
-        string map = string.IsNullOrWhiteSpace(mapAtReport) ? "Unknown" : mapAtReport;
-        string game = server.GameCode.ToString();
-        string guid = target.NetworkId.ToString();
-
-        string baseUrl = _appConfig.Webfront?.ManualUrl?.TrimEnd('/') ?? "";
-        string profileUrl = !string.IsNullOrWhiteSpace(baseUrl)
-            ? $"{baseUrl}/Client/Profile/{target.ClientId}"
-            : "Unavailable";
-
-        string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "DEV";
-
-        return new
-        {
-            title = "🎬 Demo Uploaded for New Report",
-            description = $"**Target Player:** `{suspect}`\n**Reported By:** `{reporter}`",
-            timestamp = DateTime.UtcNow.ToString("o"),
-            color = 3066993,
-            footer = new { text = $"DemosToDiscord v{version}" },
-            fields = new[]
-            {
-                new { name = "🖥 Server", value = $"**{server.ServerName.StripColors()}**", inline = false },
-                new { name = "🎮 Game", value = game, inline = true },
-                new { name = "🗺 Map", value = map, inline = true },
-                new { name = "👤 Player GUID", value = $"`{guid}`", inline = false },
-                new { name = "🔗 Player Profile", value = $"[View Profile]({profileUrl})", inline = false },
-                new
-                {
-                    name = "📎 Demo Status",
-                    value = hasDemo ? "✅ Demo file successfully attached" : "❌ No demo file found",
-                    inline = false
-                }
-            }
-        };
+        if (_config.ServerOverrides.TryGetValue(serverId, out var exact))
+            return exact;
+        if (legacyServerId is not null && _config.ServerOverrides.TryGetValue(legacyServerId.Value.ToString(), out var legacy))
+            return legacy;
+        return _config.ServerOverrides.TryGetValue("*", out var fallback) ? fallback : null;
     }
 
-    private class DemoFileMeta
+    public void Dispose()
     {
-        public string Mode { get; set; } = "";
-        public string Map { get; set; } = "";
-        public DateTime StartTime { get; set; }
+        _queue.Writer.TryComplete();
+        _shutdown.Cancel();
+        _shutdown.Dispose();
     }
 }
+
