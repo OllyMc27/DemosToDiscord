@@ -6,6 +6,8 @@
 
 An [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin) plugin that turns player reports and automated anti-cheat bans into organised evidence cases with Discord demo delivery and a webfront review workflow.
 
+[Read the full Wiki](https://github.com/OllyMc27/DemosToDiscord/wiki) for installation, configuration, evidence matching and troubleshooting.
+
 ![Completed evidence review in Discord](docs/images/discord-evidence-review.png)
 
 ## Features
@@ -40,6 +42,30 @@ An [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin) plugin that turns player r
 
 Only case metadata and review history are retained by the plugin; demo contents are not copied into its state file, and webhook secrets are never displayed or stored there.
 
+## Webfront preview
+
+> 📷 **Screenshot needed — evidence queue**<br>
+> Save as `docs/images/webfront-evidence-queue.png`. Show the **Demo Evidence** sidebar item, overview counters, filters, and at least two case rows—ideally one uploaded case and one case without a demo.
+
+<!-- Replace the note above with: ![Demo Evidence queue](docs/images/webfront-evidence-queue.png) -->
+
+> 📷 **Screenshot needed — case review**<br>
+> Save as `docs/images/webfront-case-review.png`. Show the case header, review status, demo download, and the right-hand player/evidence action panel.
+
+<!-- Replace the note above with: ![Evidence case review](docs/images/webfront-case-review.png) -->
+
+> 📷 **Screenshot needed — timeline and metrics**<br>
+> Save as `docs/images/webfront-timeline-metrics.png`. Frame the match timeline and metric cards together, including visible “into match” offsets.
+
+<!-- Replace the note above with: ![Match timeline and evidence metrics](docs/images/webfront-timeline-metrics.png) -->
+
+> 📷 **Screenshot needed — metadata-only case**<br>
+> Save as `docs/images/webfront-metadata-only.png`. Use a T4, IW5 or T5 Zombies report so **Demo unsupported**, reports and review controls are all visible.
+
+<!-- Replace the note above with: ![Metadata-only evidence case](docs/images/webfront-metadata-only.png) -->
+
+Capture at a readable desktop width using the same theme, and blur public IP addresses or player identifiers you do not want published. The [Wiki screenshot checklist](https://github.com/OllyMc27/DemosToDiscord/wiki#screenshot-checklist) has the full framing notes.
+
 ## Installation
 
 1. Download `DemosToDiscord.dll` from the [latest release](https://github.com/OllyMc27/DemosToDiscord/releases/latest).
@@ -67,7 +93,7 @@ Moderators can then open **Admin → Demo Evidence**. Set IW4MAdmin's `Webfront.
 }
 ```
 
-The [complete configuration example](examples/DemosToDiscord.json) documents queue timing, retention, demo-capability overrides, per-game/server webhooks and optional Discord role IDs. Server overrides can use an endpoint, legacy server ID or `"*"` fallback. Set `TimeZone` to an IANA timezone such as `UTC`, `America/New_York` or `Australia/Sydney`; invalid values fall back to `Europe/London`.
+The [complete configuration example](examples/DemosToDiscord.json) documents queue timing, retention, demo-capability overrides, per-game/server webhooks and optional Discord role IDs. Server overrides can use an endpoint, legacy server ID or `"*"` fallback. Set `TimeZone` to an IANA timezone such as `UTC`, `America/New_York` or `Australia/Sydney`; invalid values fall back to `Europe/London`. See the [Wiki configuration reference](https://github.com/OllyMc27/DemosToDiscord/wiki#complete-configuration-reference) for every setting.
 
 ## Admin commands
 
