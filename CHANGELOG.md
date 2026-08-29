@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.2
+
+- Fixed T6 evidence remaining in `Searching` when IW4MAdmin's live mode did not match the mode encoded in the correct demo filename.
+- T6 matching now treats map, time and sidecar target GUID as authoritative while using game mode as a scoring preference; non-T6 matching remains strict.
+
 ## 2.3.1
 
 - Preserved the original Plutonium `.demo` and `.json` filenames in Discord attachments so downloaded evidence remains compatible with in-game theatre.

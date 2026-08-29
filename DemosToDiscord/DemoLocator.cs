@@ -44,6 +44,10 @@ public sealed class DemoLocator(DemosToDiscordConfig config, ILogger<DemoLocator
                          .Take(25))
             {
                 var reason = RejectionReason(item.Meta, evidenceCase, earliest, latest);
+                if (reason is null && item.Meta is not null &&
+                    !ModeMatches(item.Meta.Mode, evidenceCase.Mode) &&
+                    evidenceCase.Game.Equals("T6", StringComparison.OrdinalIgnoreCase))
+                    reason = "candidate-mode-fallback";
                 logger.LogInformation(
                     "[DemosToDiscord] Demo scan case={CaseId} file={File} parsedUtc={Started:u} map={Map} mode={Mode} result={Result}",
                     evidenceCase.Id,
@@ -57,7 +61,6 @@ public sealed class DemoLocator(DemosToDiscordConfig config, ILogger<DemoLocator
 
         var candidates = parsedFiles
             .Where(item => RejectionReason(item.Meta, evidenceCase, earliest, latest) is null)
-            .Where(item => MapMatches(item.Meta!.Map, evidenceCase.Map) && ModeMatches(item.Meta.Mode, evidenceCase.Mode))
             .Select(item => Score(evidenceCase, item.Path, item.Meta!))
             .OrderByDescending(item => item.Score)
             .ThenByDescending(item => File.GetLastWriteTimeUtc(item.DemoPath))
@@ -129,7 +132,8 @@ public sealed class DemoLocator(DemosToDiscordConfig config, ILogger<DemoLocator
             json = null;
         var confirmed = json is not null && JsonContainsTarget(json, evidenceCase.TargetNetworkId);
         var delta = Math.Abs((evidenceCase.CreatedAtUtc - meta.StartedAtUtc).TotalMinutes);
-        var score = (confirmed ? 10_000 : 0) + Math.Max(0, 1_000 - delta);
+        var modeScore = ModeMatches(meta.Mode, evidenceCase.Mode) ? 100 : 0;
+        var score = (confirmed ? 10_000 : 0) + modeScore + Math.Max(0, 1_000 - delta);
         return new DemoCandidate(path, json, meta.Map, meta.Mode, meta.StartedAtUtc, confirmed, score);
     }
 
@@ -166,7 +170,8 @@ public sealed class DemoLocator(DemosToDiscordConfig config, ILogger<DemoLocator
             return "after-event";
         if (!MapMatches(meta.Map, evidenceCase.Map))
             return "map-mismatch";
-        if (!ModeMatches(meta.Mode, evidenceCase.Mode))
+        if (!evidenceCase.Game.Equals("T6", StringComparison.OrdinalIgnoreCase) &&
+            !ModeMatches(meta.Mode, evidenceCase.Mode))
             return "mode-mismatch";
         return null;
     }
