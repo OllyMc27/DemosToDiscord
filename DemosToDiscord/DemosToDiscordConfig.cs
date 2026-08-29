@@ -26,8 +26,6 @@ public sealed class DemosToDiscordConfig
     public int FileStableChecks { get; set; } = 3;
     public int MaxConcurrentUploads { get; set; } = 2;
     public int DeduplicationWindowMinutes { get; set; } = 120;
-    public bool RenameOnUpload { get; set; } = true;
-
     public bool EnableWebfrontDashboard { get; set; } = true;
     public EFClient.Permission WebfrontMinimumPermission { get; set; } = EFClient.Permission.Moderator;
     public bool StoreReportReasons { get; set; } = true;

@@ -28,7 +28,6 @@
   "FileStableChecks": 3,
   "MaxConcurrentUploads": 2,
   "DeduplicationWindowMinutes": 120,
-  "RenameOnUpload": true,
   "EnableWebfrontDashboard": true,
   "WebfrontMinimumPermission": "Moderator",
   "StoreReportReasons": true,

@@ -12,9 +12,9 @@ An [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin) plugin that turns player r
 
 ### Evidence collection
 
-- Uploads T5 and T6 `.demo` files directly to Discord, without ZIP archives.
+- Uploads T5 and T6 `.demo` files directly to Discord, without ZIP archives or filename changes, so downloads remain compatible with Plutonium theatre.
 - Captures T6 automated anti-cheat bans even when nobody reports the player.
-- Groups reports, automated detections and observed manual bans from the same match into one case.
+- Groups reports, automated detections and observed manual bans from the same match into one case; manual bans never create a separate cross-server case.
 - Uses T6 JSON metadata to confirm the target GUID when available.
 - Keeps T4, IW5 and T5 Zombies reports as metadata-only cases where demo recording is unavailable.
 - Uses a background queue with deduplication, retries and stable-file checks.
@@ -25,6 +25,7 @@ An [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin) plugin that turns player r
 - Supports player/case search and filters for game, server, source, demo state, review state and date.
 - Includes unassigned and assigned-to-me queues for shared admin teams.
 - Shows match details, reports, demo downloads, game statistics, anti-cheat metrics and event snapshots.
+- Adds a player timeline with join, report, anti-cheat and leave times plus their positions within the demo.
 - Adds evidence confidence, case activity history and previous retained cases for the same player.
 - Reuses IW4MAdmin's native profile, statistics, Ban, Kick, Flag and Add Note actions.
 - Records review outcomes, reviewer notes and case-scoped report clearing.
@@ -34,6 +35,7 @@ An [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin) plugin that turns player r
 - Sends compact evidence embeds with direct links to the case and player profile.
 - Keeps Discord attachments downloadable through fresh CDN links in the webfront.
 - Updates the original Discord message when a case is assigned or reviewed.
+- Uses UK local time in the `HH:mm:ss dd/MM/yyyy` format throughout the webfront and Discord.
 - Supports default, per-game and per-server webhooks plus optional restricted role notifications.
 
 Only case metadata and review history are retained by the plugin; demo contents are not copied into its state file, and webhook secrets are never displayed or stored there.

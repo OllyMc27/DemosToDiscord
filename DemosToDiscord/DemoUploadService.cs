@@ -12,6 +12,7 @@ public sealed class DemoUploadService : IDisposable
     private readonly EvidenceCaseStore _store;
     private readonly DemoLocator _locator;
     private readonly DiscordWebhookClient _discord;
+    private readonly PlayerTimelineService _timeline;
     private readonly ILogger<DemoUploadService> _logger;
     private readonly Channel<string> _queue = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
     {
@@ -27,12 +28,14 @@ public sealed class DemoUploadService : IDisposable
         EvidenceCaseStore store,
         DemoLocator locator,
         DiscordWebhookClient discord,
+        PlayerTimelineService timeline,
         ILogger<DemoUploadService> logger)
     {
         _config = config;
         _store = store;
         _locator = locator;
         _discord = discord;
+        _timeline = timeline;
         _logger = logger;
     }
 
@@ -82,9 +85,35 @@ public sealed class DemoUploadService : IDisposable
         if (trigger is null)
             return;
 
+        var whenUtc = evt.Penalty.When == default
+            ? DateTime.UtcNow
+            : EvidenceTime.AsUtc(evt.Penalty.When);
+        if (trigger == EvidenceTriggerType.ManualBan)
+        {
+            var linkedCase = await _store.LinkManualBanAsync(
+                evt.Client.ClientId,
+                whenUtc,
+                evt.Penalty.PenaltyId > 0 ? evt.Penalty.PenaltyId : null,
+                token);
+            if (linkedCase is null)
+            {
+                _logger.LogInformation(
+                    "[DemosToDiscord] Ignored manual ban for client {ClientId}; no recent evidence case was found",
+                    evt.Client.ClientId);
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(linkedCase.DiscordMessageId))
+                await UpdateCaseDiscordAsync(linkedCase.Id, token);
+            _logger.LogInformation(
+                "[DemosToDiscord] Manual ban linked to existing evidence case {CaseId}; no new case was created",
+                linkedCase.Id);
+            return;
+        }
+
         var capture = new PenaltyCapture(
             trigger.Value,
-            evt.Penalty.When == default ? DateTime.UtcNow : evt.Penalty.When.ToUniversalTime(),
+            whenUtc,
             server.Id,
             server.ServerName.StripColors(),
             server.LegacyDatabaseId,
@@ -199,7 +228,7 @@ public sealed class DemoUploadService : IDisposable
 
             if (!capability.Supported)
             {
-                evidenceCase = _store.Get(caseId)!;
+                evidenceCase = await EnrichCaseAsync(caseId, null, token);
                 if (!ShouldSendMetadataOnly(evidenceCase))
                 {
                     await _store.UpdateAsync(caseId, item =>
@@ -248,7 +277,7 @@ public sealed class DemoUploadService : IDisposable
 
             if (candidate is null)
             {
-                evidenceCase = _store.Get(caseId)!;
+                evidenceCase = await EnrichCaseAsync(caseId, null, token);
                 var receipt = await _discord.SendCaseAsync(
                     evidenceCase,
                     webhook,
@@ -268,7 +297,7 @@ public sealed class DemoUploadService : IDisposable
                 await Task.Delay(TimeSpan.FromSeconds(_config.PostMatchDelaySeconds), token);
 
             await _store.UpdateAsync(caseId, item => item.Status = EvidenceCaseStatus.Uploading, token);
-            evidenceCase = _store.Get(caseId)!;
+            evidenceCase = await EnrichCaseAsync(caseId, candidate, token);
             var receiptWithDemo = await _discord.SendCaseAsync(
                 evidenceCase,
                 webhook,
@@ -368,7 +397,7 @@ public sealed class DemoUploadService : IDisposable
 
     public async Task<bool> UpdateCaseDiscordAsync(string caseId, CancellationToken token)
     {
-        var evidenceCase = _store.Get(caseId);
+        var evidenceCase = await EnrichCaseAsync(caseId, null, token);
         if (evidenceCase is null || string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId))
             return false;
 
@@ -391,6 +420,33 @@ public sealed class DemoUploadService : IDisposable
             await _store.UpdateAsync(caseId, item => item.DiscordSyncError = exception.Message, CancellationToken.None);
             return false;
         }
+    }
+
+    private async Task<EvidenceCase> EnrichCaseAsync(
+        string caseId,
+        DemoCandidate? candidate,
+        CancellationToken token)
+    {
+        if (candidate is not null)
+        {
+            await _store.UpdateAsync(caseId, item =>
+            {
+                var info = new FileInfo(candidate.DemoPath);
+                item.DemoFileName = Path.GetFileName(candidate.DemoPath);
+                item.DemoFileSize = info.Exists ? info.Length : null;
+                item.DemoStartedAtUtc = candidate.StartedAtUtc;
+            }, token);
+        }
+
+        var evidenceCase = _store.Get(caseId)
+                           ?? throw new InvalidOperationException($"Evidence case {caseId} no longer exists.");
+        var timeline = await _timeline.GetAsync(evidenceCase, token);
+        await _store.UpdateAsync(caseId, item =>
+        {
+            item.PlayerJoinedAtUtc = timeline.JoinedAtUtc;
+            item.PlayerLeftAtUtc = timeline.LeftAtUtc;
+        }, token);
+        return _store.Get(caseId)!;
     }
 
     internal DemoCapability ResolveDemoCapability(EvidenceCase evidenceCase)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.1
+
+- Preserved the original Plutonium `.demo` and `.json` filenames in Discord attachments so downloaded evidence remains compatible with in-game theatre.
+- Changed webfront and Discord timestamps to UK local time in `HH:mm:ss dd/MM/yyyy` format, including daylight-saving handling.
+- Prevented manual bans from creating new evidence cases on an unrelated current server; they now only update a recent existing case for that player.
+- Added a match timeline showing player join, report, anti-cheat and disconnect times with their offsets into the demo.
+
 ## 2.3.0
 
 - Retained reports from T4, IW5 and T5 Zombies as metadata-only evidence cases instead of discarding them.

@@ -70,6 +70,8 @@ public sealed class EvidenceCase
     public string? DemoFileName { get; set; }
     public long? DemoFileSize { get; set; }
     public DateTime? DemoStartedAtUtc { get; set; }
+    public DateTime? PlayerJoinedAtUtc { get; set; }
+    public DateTime? PlayerLeftAtUtc { get; set; }
     public string? DiscordMessageId { get; set; }
     public string? DiscordChannelId { get; set; }
     public string? DiscordGuildId { get; set; }
@@ -162,6 +164,8 @@ public sealed record DemoCandidate(
     DateTime StartedAtUtc,
     bool TargetConfirmed,
     double Score);
+
+public sealed record PlayerMatchTimeline(DateTime? JoinedAtUtc, DateTime? LeftAtUtc);
 
 public sealed record DiscordAttachment(string Id, string FileName, string Url, long Size);
 

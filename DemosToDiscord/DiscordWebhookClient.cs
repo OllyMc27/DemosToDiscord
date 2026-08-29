@@ -10,7 +10,6 @@ namespace DemosToDiscord;
 public sealed class DiscordWebhookClient : IDisposable
 {
     private readonly ApplicationConfiguration _applicationConfiguration;
-    private readonly DemosToDiscordConfig _config;
     private readonly ILogger<DiscordWebhookClient> _logger;
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(10) };
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
@@ -21,7 +20,6 @@ public sealed class DiscordWebhookClient : IDisposable
         ILogger<DiscordWebhookClient> logger)
     {
         _applicationConfiguration = applicationConfiguration;
-        _config = config;
         _logger = logger;
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("DemosToDiscord/2.0");
     }
@@ -46,11 +44,11 @@ public sealed class DiscordWebhookClient : IDisposable
             var fileIndex = 0;
             if (demoPath is not null)
             {
-                AddFile(form, streams, demoPath, UploadName(evidenceCase, demoPath), fileIndex++);
+                AddFile(form, streams, demoPath, AttachmentFileName(demoPath), fileIndex++);
             }
 
             if (jsonPath is not null && File.Exists(jsonPath))
-                AddFile(form, streams, jsonPath, UploadName(evidenceCase, jsonPath), fileIndex);
+                AddFile(form, streams, jsonPath, AttachmentFileName(jsonPath), fileIndex);
 
             using var response = await _http.PostAsync(WithWait(webhook), form, token);
             var responseJson = await response.Content.ReadAsStringAsync(token);
@@ -193,10 +191,17 @@ public sealed class DiscordWebhookClient : IDisposable
             inline = true
         });
 
+        fields.Add(new
+        {
+            name = "Match timeline",
+            value = MatchTimelineSummary(evidenceCase),
+            inline = false
+        });
+
         if (evidenceCase.Reports.Count > 0)
         {
             var reports = string.Join("\n", evidenceCase.Reports.Take(5).Select(item =>
-                $"• **{DiscordText(item.ReporterName)}:** {DiscordText(item.Reason)}"));
+                $"• **{DiscordText(item.ReporterName)}:** {DiscordText(item.Reason)} — {EvidenceTime.FormatUk(item.WhenUtc)} UK, {EvidenceTime.MatchOffset(item.WhenUtc, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()}"));
             if (evidenceCase.Reports.Count > 5)
                 reports += $"\n*+{evidenceCase.Reports.Count - 5} more report(s)*";
             fields.Add(new { name = "Player reports", value = Limit(reports, 1024), inline = false });
@@ -228,7 +233,7 @@ public sealed class DiscordWebhookClient : IDisposable
         var embed = new Dictionary<string, object>
         {
             ["title"] = Limit(title, 256),
-            ["description"] = $"Case `{evidenceCase.Id}` • captured <t:{new DateTimeOffset(evidenceCase.CreatedAtUtc).ToUnixTimeSeconds()}:R>",
+            ["description"] = $"Case `{evidenceCase.Id}` • captured **{EvidenceTime.FormatUk(evidenceCase.CreatedAtUtc)} UK**",
             ["timestamp"] = evidenceCase.CreatedAtUtc.ToUniversalTime().ToString("O"),
             ["color"] = EmbedColor(evidenceCase),
             ["author"] = new { name = "IW4MAdmin • Demo Evidence" },
@@ -293,16 +298,6 @@ public sealed class DiscordWebhookClient : IDisposable
         form.Add(content, $"files[{index}]", uploadName);
     }
 
-    private string UploadName(EvidenceCase evidenceCase, string path)
-    {
-        if (!_config.RenameOnUpload)
-            return Path.GetFileName(path);
-        var target = string.Concat(evidenceCase.TargetName.Where(character => char.IsLetterOrDigit(character) || character is '-' or '_'));
-        if (string.IsNullOrWhiteSpace(target))
-            target = evidenceCase.TargetClientId.ToString();
-        return $"{evidenceCase.Game}_{evidenceCase.Id}_{target}{Path.GetExtension(path)}";
-    }
-
     private static string WithWait(string webhook)
     {
         var separator = webhook.Contains('?') ? '&' : '?';
@@ -335,7 +330,7 @@ public sealed class DiscordWebhookClient : IDisposable
                 : "⚠️ No matching demo found";
         }
 
-        var fileName = UploadName(evidenceCase, demoPath);
+        var fileName = AttachmentFileName(demoPath);
         var size = File.Exists(demoPath) ? FormatBytes(new FileInfo(demoPath).Length) : "unknown size";
         var metadata = !string.IsNullOrWhiteSpace(jsonPath) && File.Exists(jsonPath)
             ? " • metadata attached"
@@ -351,11 +346,30 @@ public sealed class DiscordWebhookClient : IDisposable
         else
             lines.Add($"**{DiscordText(EvidenceReviewService.DecisionLabel(evidenceCase.ReviewDecision))}**");
         if (evidenceCase.AssignedToClientId is not null)
-            lines.Add($"Assigned to {DiscordText(evidenceCase.AssignedToName)}");
+            lines.Add($"Assigned to {DiscordText(evidenceCase.AssignedToName)}{FormatDiscordTime(evidenceCase.AssignedAtUtc)}");
         if (evidenceCase.ReviewedByClientId is not null)
-            lines.Add($"Reviewed by {DiscordText(evidenceCase.ReviewedByName)}");
+            lines.Add($"Reviewed by {DiscordText(evidenceCase.ReviewedByName)}{FormatDiscordTime(evidenceCase.ReviewedAtUtc)}");
         return Limit(string.Join("\n", lines), 1024);
     }
+
+    private static string MatchTimelineSummary(EvidenceCase evidenceCase)
+    {
+        var lines = new List<string>();
+        if (evidenceCase.DemoStartedAtUtc is not null)
+            lines.Add($"🎬 Match started — **{EvidenceTime.FormatUk(evidenceCase.DemoStartedAtUtc)} UK**");
+        if (evidenceCase.PlayerJoinedAtUtc is not null)
+            lines.Add($"➡️ Player joined — **{EvidenceTime.FormatUk(evidenceCase.PlayerJoinedAtUtc)} UK** ({EvidenceTime.MatchOffset(evidenceCase.PlayerJoinedAtUtc.Value, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
+        foreach (var report in evidenceCase.Reports.OrderBy(item => item.WhenUtc).Take(5))
+            lines.Add($"🚩 Reported — **{EvidenceTime.FormatUk(report.WhenUtc)} UK** ({EvidenceTime.MatchOffset(report.WhenUtc, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
+        if (evidenceCase.PlayerLeftAtUtc is not null)
+            lines.Add($"⬅️ Player left — **{EvidenceTime.FormatUk(evidenceCase.PlayerLeftAtUtc)} UK** ({EvidenceTime.MatchOffset(evidenceCase.PlayerLeftAtUtc.Value, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
+        return Limit(lines.Count == 0 ? "Timeline data is not available for this case." : string.Join("\n", lines), 1024);
+    }
+
+    private static string FormatDiscordTime(DateTime? value) =>
+        value is null ? string.Empty : $" at {EvidenceTime.FormatUk(value)} UK";
+
+    internal static string AttachmentFileName(string path) => Path.GetFileName(path);
 
     private static int EmbedColor(EvidenceCase evidenceCase) => evidenceCase.ReviewDecision switch
     {

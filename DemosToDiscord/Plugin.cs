@@ -26,6 +26,7 @@ public sealed class Plugin : IPluginV2
         services.AddSingleton<DemoLocator>();
         services.AddSingleton<DiscordWebhookClient>();
         services.AddSingleton<AntiCheatMetricsService>();
+        services.AddSingleton<PlayerTimelineService>();
         services.AddSingleton<EvidenceReviewService>();
         services.AddSingleton<DemoUploadService>();
         services.AddSingleton<DemosToDiscordWebfront>();

@@ -29,6 +29,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
     private readonly DemosToDiscordConfig _config;
     private readonly DemoUploadService _service;
     private readonly AntiCheatMetricsService _metrics;
+    private readonly PlayerTimelineService _timeline;
     private readonly DiscordWebhookClient _discord;
     private readonly EvidenceReviewService _reviewService;
     private bool _disposed;
@@ -39,6 +40,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         DemosToDiscordConfig config,
         DemoUploadService service,
         AntiCheatMetricsService metrics,
+        PlayerTimelineService timeline,
         DiscordWebhookClient discord,
         EvidenceReviewService reviewService)
     {
@@ -47,6 +49,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         _config = config;
         _service = service;
         _metrics = metrics;
+        _timeline = timeline;
         _discord = discord;
         _reviewService = reviewService;
         _configurationHandler.Updated += OnConfigurationUpdated;
@@ -168,6 +171,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
             return "<div class=\"rounded-xl border border-red-500/30 bg-red-500/10 p-5 text-red-300\">Evidence case not found.</div>";
 
         var metricsTask = _metrics.GetAsync(evidenceCase, token);
+        var timelineTask = _timeline.GetAsync(evidenceCase, token);
         Task<IReadOnlyList<DiscordAttachment>> attachmentsTask =
             Task.FromResult<IReadOnlyList<DiscordAttachment>>([]);
         if (!string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId))
@@ -177,8 +181,9 @@ public sealed class DemosToDiscordWebfront : IDisposable
                 attachmentsTask = _discord.GetAttachmentsAsync(webhook, evidenceCase.DiscordMessageId, token);
         }
 
-        await Task.WhenAll(metricsTask, attachmentsTask);
+        await Task.WhenAll(metricsTask, timelineTask, attachmentsTask);
         var metrics = await metricsTask;
+        var timeline = await timelineTask;
         var attachments = await attachmentsTask;
         var orderedCases = _service.GetSnapshot().Cases;
         var playerCases = orderedCases
@@ -223,8 +228,8 @@ public sealed class DemosToDiscordWebfront : IDisposable
         {
             builder.Append(InfoBlock("Source file", evidenceCase.DemoFileName, "ph-file"))
                 .Append(InfoBlock("File size", evidenceCase.DemoFileSize is null ? "Unknown" : FormatBytes(evidenceCase.DemoFileSize.Value), "ph-hard-drive"))
-                .Append(InfoBlock("Match started", evidenceCase.DemoStartedAtUtc?.ToString("u") ?? "Unknown", "ph-clock"))
-                .Append(InfoBlock("Uploaded", evidenceCase.UploadedAtUtc?.ToString("u") ?? "Not uploaded", "ph-cloud-arrow-up"));
+                .Append(InfoBlock("Match started", EvidenceTime.FormatUk(evidenceCase.DemoStartedAtUtc), "ph-clock"))
+                .Append(InfoBlock("Uploaded", EvidenceTime.FormatUk(evidenceCase.UploadedAtUtc, "Not uploaded"), "ph-cloud-arrow-up"));
         }
         else
         {
@@ -237,6 +242,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
             builder.Append($"<div class=\"mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300\">{Encode(evidenceCase.LastError)}</div>");
         builder.Append("</div></section>");
 
+        builder.Append(MatchTimelineSection(evidenceCase, timeline));
         builder.Append(PlayerMetricsSection(metrics.PlayerMetrics));
         builder.Append(ReportsSection(evidenceCase));
         builder.Append(AntiCheatSection(evidenceCase, metrics));
@@ -259,7 +265,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
                 "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
             _ => "border-primary/30 bg-primary/10 text-primary"
         };
-        return $"<div class=\"flex items-center gap-3 rounded-xl border px-4 py-3 {css}\"><i class=\"ph ph-check-circle text-xl\"></i><div><div class=\"font-semibold\">{Encode(TitleCase(EvidenceReviewService.DecisionLabel(item.ReviewDecision)))}</div><div class=\"text-sm opacity-80\">Reviewed by {Encode(item.ReviewedByName ?? "an administrator")} · {Encode(item.ReviewedAtUtc?.ToString("u") ?? string.Empty)}</div></div></div>";
+        return $"<div class=\"flex items-center gap-3 rounded-xl border px-4 py-3 {css}\"><i class=\"ph ph-check-circle text-xl\"></i><div><div class=\"font-semibold\">{Encode(TitleCase(EvidenceReviewService.DecisionLabel(item.ReviewDecision)))}</div><div class=\"text-sm opacity-80\">Reviewed by {Encode(item.ReviewedByName ?? "an administrator")} · {Encode(EvidenceTime.FormatUk(item.ReviewedAtUtc, string.Empty))}</div></div></div>";
     }
 
     private static string HeroSection(EvidenceCase item)
@@ -292,10 +298,10 @@ public sealed class DemosToDiscordWebfront : IDisposable
                 {InfoBlock("Server", item.ServerName, "ph-hard-drives")}
                 {InfoBlock("Endpoint", item.ServerId, "ph-plugs-connected")}
                 {InfoBlock("Map / mode", $"{item.Map} / {item.Mode}", "ph-map-trifold")}
-                {InfoBlock("Captured", item.CreatedAtUtc.ToString("u"), "ph-clock")}
+                {InfoBlock("Captured", EvidenceTime.FormatUk(item.CreatedAtUtc), "ph-clock")}
                 {InfoBlock("Evidence", string.Join(", ", item.TriggerTypes), "ph-files")}
                 {InfoBlock("Confidence", $"{confidence.Label} — {confidence.Detail}", "ph-shield-check")}
-                {InfoBlock("Last updated", item.UpdatedAtUtc.ToString("u"), "ph-arrow-clockwise")}
+                {InfoBlock("Last updated", EvidenceTime.FormatUk(item.UpdatedAtUtc), "ph-arrow-clockwise")}
               </dl>
             </section>
             """;
@@ -311,10 +317,10 @@ public sealed class DemosToDiscordWebfront : IDisposable
             : Encode(item.ReviewNotes);
         var cleared = item.ReportsClearedAtUtc is null
             ? "Active report state unchanged"
-            : $"{item.ReportsClearedCount} report(s) cleared at {item.ReportsClearedAtUtc:u}";
+            : $"{item.ReportsClearedCount} report(s) cleared at {EvidenceTime.FormatUk(item.ReportsClearedAtUtc)}";
         var assignment = item.AssignedToClientId is null
             ? "Unassigned"
-            : $"{item.AssignedToName} since {item.AssignedAtUtc:u}";
+            : $"{item.AssignedToName} since {EvidenceTime.FormatUk(item.AssignedAtUtc)}";
         return $"""
             <section class="rounded-xl border border-line bg-surface p-5 shadow-sm">
               <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -323,7 +329,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
               </div>
               <dl class="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <div class="min-w-0 rounded-lg border border-line bg-surface-alt/20 p-3"><dt class="text-xs uppercase tracking-wide text-muted">Reviewed by</dt><dd class="mt-1 break-words text-sm font-medium text-foreground">{reviewer}</dd></div>
-                {InfoBlock("Reviewed", item.ReviewedAtUtc?.ToString("u") ?? "Not reviewed", "ph-calendar-check")}
+                {InfoBlock("Reviewed", EvidenceTime.FormatUk(item.ReviewedAtUtc, "Not reviewed"), "ph-calendar-check")}
                 {InfoBlock("Reports", cleared, "ph-flag")}
                 {InfoBlock("Assigned", assignment, "ph-user-focus")}
               </dl>
@@ -331,6 +337,57 @@ public sealed class DemosToDiscordWebfront : IDisposable
             </section>
             """;
     }
+
+    private static string MatchTimelineSection(EvidenceCase evidenceCase, PlayerMatchTimeline timeline)
+    {
+        var builder = new StringBuilder("<section class=\"overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"border-b border-line px-5 py-4\"><h3 class=\"font-semibold text-foreground\">Match timeline</h3><p class=\"text-sm text-muted\">Player activity and reports positioned within the recorded match. Times are shown in UK local time.</p></div><div class=\"divide-y divide-line\">");
+        if (evidenceCase.DemoStartedAtUtc is not null)
+            builder.Append(TimelineRow("Demo started", evidenceCase.DemoStartedAtUtc.Value, evidenceCase.DemoStartedAtUtc, "ph-film-strip", "Match recording began"));
+        else
+            builder.Append(TimelineUnavailable("Demo started", "No demo start time is available for this case.", "ph-film-strip"));
+
+        if (timeline.JoinedAtUtc is not null)
+            builder.Append(TimelineRow("Player joined", timeline.JoinedAtUtc.Value, evidenceCase.DemoStartedAtUtc, "ph-sign-in", "Connection recorded by IW4MAdmin"));
+        else
+            builder.Append(TimelineUnavailable("Player joined", "No matching connection record was found.", "ph-sign-in"));
+
+        foreach (var report in evidenceCase.Reports.OrderBy(item => item.WhenUtc))
+            builder.Append(TimelineRow(
+                "Player reported",
+                report.WhenUtc,
+                evidenceCase.DemoStartedAtUtc,
+                "ph-flag",
+                $"{report.ReporterName}: {report.Reason}"));
+
+        if (evidenceCase.AntiCheat is not null)
+            builder.Append(TimelineRow("Anti-cheat ban", evidenceCase.AntiCheat.WhenUtc, evidenceCase.DemoStartedAtUtc, "ph-shield-warning", evidenceCase.AntiCheat.Detection));
+
+        if (timeline.LeftAtUtc is not null)
+            builder.Append(TimelineRow("Player left", timeline.LeftAtUtc.Value, evidenceCase.DemoStartedAtUtc, "ph-sign-out", "Disconnect recorded by IW4MAdmin"));
+        else
+            builder.Append(TimelineUnavailable("Player left", "The player was still connected or no disconnect was recorded.", "ph-sign-out"));
+        return builder.Append("</div></section>").ToString();
+    }
+
+    private static string TimelineRow(
+        string label,
+        DateTime whenUtc,
+        DateTime? matchStartedAtUtc,
+        string icon,
+        string detail) => $"""
+            <div class="flex flex-wrap items-start gap-3 px-5 py-3">
+              <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt"><i class="ph {Encode(icon)} text-primary"></i></div>
+              <div class="min-w-0 flex-1"><div class="font-medium text-foreground">{Encode(label)}</div><div class="mt-0.5 break-words text-sm text-muted">{Encode(detail)}</div></div>
+              <div class="shrink-0 sm:text-right"><div class="text-sm font-medium text-foreground">{Encode(EvidenceTime.FormatUk(whenUtc))}</div><div class="mt-0.5 text-xs text-muted">{Encode(EvidenceTime.MatchOffset(whenUtc, matchStartedAtUtc))}</div></div>
+            </div>
+            """;
+
+    private static string TimelineUnavailable(string label, string detail, string icon) => $"""
+        <div class="flex gap-3 px-5 py-3 opacity-70">
+          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt"><i class="ph {Encode(icon)} text-muted"></i></div>
+          <div class="min-w-0"><div class="font-medium text-foreground">{Encode(label)}</div><div class="mt-0.5 text-sm text-muted">{Encode(detail)}</div></div>
+        </div>
+        """;
 
     private static string PlayerMetricsSection(PlayerEvidenceMetrics? metrics)
     {
@@ -485,12 +542,12 @@ public sealed class DemosToDiscordWebfront : IDisposable
         var reportState = evidenceCase.ReportsClearedAtUtc is null
             ? "<span class=\"rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-300\">Active / unchanged</span>"
             : $"<span class=\"rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-300\">{evidenceCase.ReportsClearedCount} cleared</span>";
-        var builder = new StringBuilder($"<section id=\"reports\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"px-5 py-4 border-b border-line flex items-center justify-between gap-3\"><div><h3 class=\"font-semibold text-foreground\">Player reports</h3><p class=\"text-sm text-muted\">Reports grouped into this evidence case.</p></div>{reportState}</div><div class=\"overflow-x-auto\"><table class=\"w-full text-left\"><thead class=\"text-xs uppercase text-muted border-b border-line bg-surface-alt/30\"><tr><th class=\"px-5 py-3\">Time</th><th class=\"px-5 py-3\">Reporter</th><th class=\"px-5 py-3\">Reason</th><th class=\"px-5 py-3\">Penalty</th></tr></thead><tbody class=\"divide-y divide-line\">");
+        var builder = new StringBuilder($"<section id=\"reports\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"px-5 py-4 border-b border-line flex items-center justify-between gap-3\"><div><h3 class=\"font-semibold text-foreground\">Player reports</h3><p class=\"text-sm text-muted\">Reports grouped into this evidence case.</p></div>{reportState}</div><div class=\"overflow-x-auto\"><table class=\"w-full text-left\"><thead class=\"text-xs uppercase text-muted border-b border-line bg-surface-alt/30\"><tr><th class=\"px-5 py-3\">UK time</th><th class=\"px-5 py-3\">Match position</th><th class=\"px-5 py-3\">Reporter</th><th class=\"px-5 py-3\">Reason</th><th class=\"px-5 py-3\">Penalty</th></tr></thead><tbody class=\"divide-y divide-line\">");
         if (evidenceCase.Reports.Count == 0)
-            builder.Append("<tr><td colspan=\"4\" class=\"px-5 py-6 text-center text-muted\">No player reports are attached to this case.</td></tr>");
+            builder.Append("<tr><td colspan=\"5\" class=\"px-5 py-6 text-center text-muted\">No player reports are attached to this case.</td></tr>");
         else
             foreach (var report in evidenceCase.Reports.OrderBy(item => item.WhenUtc))
-                builder.Append("<tr class=\"transition-colors hover:bg-surface-hover/30\">").Append(Cell(report.WhenUtc.ToString("u"))).Append(Cell(report.ReporterName)).Append(Cell(report.Reason)).Append(Cell(report.PenaltyId is > 0 ? $"#{report.PenaltyId}" : "Legacy")).Append("</tr>");
+                builder.Append("<tr class=\"transition-colors hover:bg-surface-hover/30\">").Append(Cell(EvidenceTime.FormatUk(report.WhenUtc))).Append(Cell(EvidenceTime.MatchOffset(report.WhenUtc, evidenceCase.DemoStartedAtUtc))).Append(Cell(report.ReporterName)).Append(Cell(report.Reason)).Append(Cell(report.PenaltyId is > 0 ? $"#{report.PenaltyId}" : "Legacy")).Append("</tr>");
         return builder.Append("</tbody></table></div></section>").ToString();
     }
 
@@ -500,14 +557,14 @@ public sealed class DemosToDiscordWebfront : IDisposable
         if (evidenceCase.AntiCheat is null)
             return builder.Append("<div class=\"p-5 text-sm text-muted\">This case was not triggered by an automated anti-cheat ban.</div></section>").ToString();
 
-        builder.Append($"<div class=\"p-5 border-b border-line\"><div class=\"text-sm text-muted\">Detection</div><div class=\"mt-1 text-foreground break-words\">{Encode(evidenceCase.AntiCheat.Detection)}</div><div class=\"mt-2 text-xs text-muted\">Penalty #{Encode(metrics?.PenaltyId?.ToString() ?? "unresolved")} · {Encode(evidenceCase.AntiCheat.WhenUtc.ToString("u"))}</div></div>")
+        builder.Append($"<div class=\"p-5 border-b border-line\"><div class=\"text-sm text-muted\">Detection</div><div class=\"mt-1 text-foreground break-words\">{Encode(evidenceCase.AntiCheat.Detection)}</div><div class=\"mt-2 text-xs text-muted\">Penalty #{Encode(metrics?.PenaltyId?.ToString() ?? "unresolved")} · {Encode(EvidenceTime.FormatUk(evidenceCase.AntiCheat.WhenUtc))}</div></div>")
             .Append("<div class=\"overflow-x-auto\"><table class=\"w-full text-left\"><thead class=\"text-xs uppercase text-muted border-b border-line\"><tr><th class=\"px-5 py-3\">Time</th><th class=\"px-5 py-3\">K/D/H</th><th class=\"px-5 py-3\">Strain</th><th class=\"px-5 py-3\">Snap avg / hits</th><th class=\"px-5 py-3\">Weapon / location</th><th class=\"px-5 py-3\">Distance</th></tr></thead><tbody>");
         if (metrics is null || metrics.Snapshots.Count == 0)
             builder.Append("<tr><td colspan=\"6\" class=\"px-5 py-6 text-center text-muted\">No anti-cheat snapshots were found in the database window.</td></tr>");
         else
             foreach (var item in metrics.Snapshots)
             {
-                builder.Append("<tr class=\"border-b border-line/60\">").Append(Cell(item.WhenUtc.ToString("u"))).Append(Cell($"{item.Kills}/{item.Deaths}/{item.Hits}"))
+                builder.Append("<tr class=\"border-b border-line/60\">").Append(Cell(EvidenceTime.FormatUk(item.WhenUtc))).Append(Cell($"{item.Kills}/{item.Deaths}/{item.Hits}"))
                     .Append(Cell(item.CurrentStrain.ToString("0.000"))).Append(Cell($"{item.SessionAverageSnapValue:0.000} / {item.SessionSnapHits}"))
                     .Append(Cell($"{item.Weapon} / {item.HitLocation}")).Append(Cell(item.Distance.ToString("0.0"))).Append("</tr>");
                 builder.Append("<tr class=\"border-b border-line/60 bg-surface/20\"><td colspan=\"6\" class=\"px-5 py-3 text-xs text-muted\"><details><summary class=\"cursor-pointer text-primary\">All snapshot metrics</summary><dl class=\"mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2\">")
@@ -537,7 +594,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         else
             foreach (var item in cases)
             {
-                builder.Append($"<a data-enhance-nav=\"false\" href=\"{CaseUrl(item.Id)}\" class=\"flex flex-col gap-2 px-5 py-3 transition-colors hover:bg-surface-hover/30 md:flex-row md:items-center md:justify-between\"><div><div class=\"font-medium text-foreground\">{Encode(item.ServerName)} · {Encode(item.Map)} / {Encode(item.Mode)}</div><div class=\"mt-1 text-xs text-muted\">{Encode(item.CreatedAtUtc.ToString("u"))} · {Encode(string.Join(" + ", item.TriggerTypes.Select(TriggerLabel)))}</div></div><div class=\"flex flex-wrap gap-2\">{StatusBadge(item.Status)}{ReviewBadge(item.ReviewDecision)}</div></a>");
+                builder.Append($"<a data-enhance-nav=\"false\" href=\"{CaseUrl(item.Id)}\" class=\"flex flex-col gap-2 px-5 py-3 transition-colors hover:bg-surface-hover/30 md:flex-row md:items-center md:justify-between\"><div><div class=\"font-medium text-foreground\">{Encode(item.ServerName)} · {Encode(item.Map)} / {Encode(item.Mode)}</div><div class=\"mt-1 text-xs text-muted\">{Encode(EvidenceTime.FormatUk(item.CreatedAtUtc))} · {Encode(string.Join(" + ", item.TriggerTypes.Select(TriggerLabel)))}</div></div><div class=\"flex flex-wrap gap-2\">{StatusBadge(item.Status)}{ReviewBadge(item.ReviewDecision)}</div></a>");
             }
         return builder.Append("</div></section>").ToString();
     }
@@ -554,7 +611,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
                 var notes = string.IsNullOrWhiteSpace(entry.Notes)
                     ? string.Empty
                     : $"<div class=\"mt-1 whitespace-pre-line text-sm text-muted\">{Encode(entry.Notes)}</div>";
-                builder.Append($"<div class=\"flex gap-3 px-5 py-3\"><div class=\"mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary\"></div><div class=\"min-w-0 flex-1\"><div class=\"font-medium text-foreground\">{Encode(entry.Summary)}</div>{notes}<div class=\"mt-1 text-xs text-muted\">{Encode(entry.AdminName)} · {Encode(entry.WhenUtc.ToString("u"))}</div></div></div>");
+                builder.Append($"<div class=\"flex gap-3 px-5 py-3\"><div class=\"mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary\"></div><div class=\"min-w-0 flex-1\"><div class=\"font-medium text-foreground\">{Encode(entry.Summary)}</div>{notes}<div class=\"mt-1 text-xs text-muted\">{Encode(entry.AdminName)} · {Encode(EvidenceTime.FormatUk(entry.WhenUtc))}</div></div></div>");
             }
         return builder.Append("</div></section>").ToString();
     }
@@ -697,7 +754,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
                     <span class="rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">{Encode(item.Game)}</span>
                   </div>
                   <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
-                    <span class="font-mono">{Encode(item.Id)}</span><span>{Encode(item.CreatedAtUtc.ToString("u"))}</span><span>{Encode(triggers)}</span><span>{Encode(confidence.Label)}</span><span>{Encode(assignment)}</span>
+                    <span class="font-mono">{Encode(item.Id)}</span><span>{Encode(EvidenceTime.FormatUk(item.CreatedAtUtc))}</span><span>{Encode(triggers)}</span><span>{Encode(confidence.Label)}</span><span>{Encode(assignment)}</span>
                   </div>
                 </div>
               </div>

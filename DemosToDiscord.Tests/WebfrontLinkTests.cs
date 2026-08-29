@@ -59,6 +59,15 @@ public sealed class WebfrontLinkTests
         Assert.DoesNotContain("@suspect", json);
         Assert.DoesNotContain("@reporter", json);
         Assert.Contains("@\\u200Bsuspect", json);
+        Assert.Contains("13:00:00 25/08/2026 UK", json);
+    }
+
+    [Theory]
+    [InlineData(@"D:\Plutonium\storage\t6\demos\dem_mp_nuketown_8_25_2026_12_00.demo", "dem_mp_nuketown_8_25_2026_12_00.demo")]
+    [InlineData(@"D:\Plutonium\storage\t6\demos\dem_mp_nuketown_8_25_2026_12_00.json", "dem_mp_nuketown_8_25_2026_12_00.json")]
+    public void Discord_attachments_keep_the_original_theatre_filename(string path, string expected)
+    {
+        Assert.Equal(expected, DiscordWebhookClient.AttachmentFileName(path));
     }
 }
 

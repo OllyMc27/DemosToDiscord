@@ -99,6 +99,59 @@ public sealed class EvidenceCaseStoreTests
         }
     }
 
+    [Fact]
+    public async Task Manual_ban_links_to_recent_case_without_creating_a_case_on_another_server()
+    {
+        var directory = Directory.CreateTempSubdirectory("dtd-manual-ban-");
+        try
+        {
+            var config = new DemosToDiscordConfig
+            {
+                StateFilePath = Path.Combine(directory.FullName, "cases.json"),
+                DeduplicationWindowMinutes = 120
+            };
+            var store = new EvidenceCaseStore(config, NullLogger<EvidenceCaseStore>.Instance);
+            var when = DateTime.UtcNow.AddMinutes(-10);
+            var report = await store.AddOrMergeAsync(Capture(EvidenceTriggerType.Report, when), CancellationToken.None);
+
+            var linked = await store.LinkManualBanAsync(27, when.AddMinutes(8), 1234, CancellationToken.None);
+
+            Assert.NotNull(linked);
+            Assert.Equal(report.Case.Id, linked.Id);
+            Assert.True(linked.ManualBanObserved);
+            Assert.Single(store.Snapshot().Cases);
+            Assert.Contains(linked.History, item => item.Summary.Contains("#1234"));
+        }
+        finally
+        {
+            directory.Delete(true);
+        }
+    }
+
+    [Fact]
+    public async Task Manual_ban_without_recent_evidence_is_ignored()
+    {
+        var directory = Directory.CreateTempSubdirectory("dtd-manual-ban-none-");
+        try
+        {
+            var config = new DemosToDiscordConfig
+            {
+                StateFilePath = Path.Combine(directory.FullName, "cases.json"),
+                DeduplicationWindowMinutes = 120
+            };
+            var store = new EvidenceCaseStore(config, NullLogger<EvidenceCaseStore>.Instance);
+
+            var linked = await store.LinkManualBanAsync(27, DateTime.UtcNow, 1234, CancellationToken.None);
+
+            Assert.Null(linked);
+            Assert.Empty(store.Snapshot().Cases);
+        }
+        finally
+        {
+            directory.Delete(true);
+        }
+    }
+
     private static PenaltyCapture Capture(EvidenceTriggerType trigger, DateTime when) => new(
         trigger, when, "127.0.0.1:28960", "Test Server", 1, "T6", "mp_nuketown", "dm",
         27, 123456789, "Suspect", 9, "Reporter", "aimbot", "snap detection");

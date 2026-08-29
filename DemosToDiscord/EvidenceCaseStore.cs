@@ -165,6 +165,45 @@ public sealed class EvidenceCaseStore
         }
     }
 
+    public async Task<EvidenceCase?> LinkManualBanAsync(
+        int targetClientId,
+        DateTime whenUtc,
+        int? penaltyId,
+        CancellationToken token)
+    {
+        await InitializeAsync(token);
+        await _gate.WaitAsync(token);
+        try
+        {
+            var cutoff = whenUtc.AddMinutes(-Math.Max(1, _config.DeduplicationWindowMinutes));
+            var evidenceCase = _cases
+                .Where(item => item.TargetClientId == targetClientId &&
+                               item.CreatedAtUtc >= cutoff &&
+                               item.CreatedAtUtc <= whenUtc.AddMinutes(5))
+                .OrderByDescending(item => item.CreatedAtUtc)
+                .FirstOrDefault();
+            if (evidenceCase is null)
+                return null;
+
+            evidenceCase.ManualBanObserved = true;
+            evidenceCase.UpdatedAtUtc = DateTime.UtcNow;
+            evidenceCase.History.Add(new EvidenceHistoryEntry
+            {
+                WhenUtc = whenUtc,
+                Action = EvidenceHistoryAction.EvidenceAdded,
+                Summary = penaltyId is > 0
+                    ? $"Manual ban penalty #{penaltyId} linked to this case."
+                    : "Manual ban linked to this case."
+            });
+            await SaveUnsafeAsync(token);
+            return Clone(evidenceCase);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public EvidenceCase? Get(string id)
     {
         _gate.Wait();
