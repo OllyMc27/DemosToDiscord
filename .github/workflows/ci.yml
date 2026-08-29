@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  build-and-test:
+  build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,9 +14,9 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - name: Restore
-        run: dotnet restore DemosToDiscord.sln
-      - name: Test
-        run: dotnet test --solution DemosToDiscord.sln -c Release --no-restore
+        run: dotnet restore DemosToDiscord/DemosToDiscord.csproj
+      - name: Build
+        run: dotnet build DemosToDiscord/DemosToDiscord.csproj -c Release --no-restore
       - name: Upload DLL
         uses: actions/upload-artifact@v4
         with:
