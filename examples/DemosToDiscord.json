@@ -34,6 +34,7 @@
   "CaseRetentionDays": 90,
   "MaxStoredCases": 500,
   "StateFilePath": "Configuration/DemosToDiscordCases.json",
+  "TimeZone": "Europe/London",
   "SendMetadataOnlyCasesToDiscord": true,
   "ReportRoleId": "",
   "AntiCheatRoleId": "",

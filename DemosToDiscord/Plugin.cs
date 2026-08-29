@@ -43,6 +43,8 @@ public sealed class Plugin : IPluginV2
         _config = config;
         _logger = logger;
         NormalizeConfiguration(_config);
+        if (!EvidenceTime.Configure(_config.TimeZone))
+            _logger.LogWarning("[{Name}] time zone {TimeZone} was not recognised; using {Fallback}", Name, _config.TimeZone, EvidenceTime.DefaultTimeZoneId);
 
         IManagementEventSubscriptions.ClientPenaltyAdministered += OnClientPenaltyAdministered;
         IManagementEventSubscriptions.Load += OnLoad;
@@ -88,6 +90,8 @@ public sealed class Plugin : IPluginV2
             config.ServerOverrides = new Dictionary<string, DemosToDiscordServerOverride>(config.ServerOverrides, StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrWhiteSpace(config.StateFilePath))
             config.StateFilePath = "Configuration/DemosToDiscordCases.json";
+        if (string.IsNullOrWhiteSpace(config.TimeZone))
+            config.TimeZone = EvidenceTime.DefaultTimeZoneId;
     }
 
     public void Dispose()

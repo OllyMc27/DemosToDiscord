@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.3
+
+- Added a configurable `TimeZone` setting for webfront and Discord timestamps, defaulting to `Europe/London`.
+- Added safe fallback handling for invalid timezone IDs and displayed the active timezone in the evidence dashboard.
+
 ## 2.3.2
 
 - Fixed T6 evidence remaining in `Searching` when IW4MAdmin's live mode did not match the mode encoded in the correct demo filename.

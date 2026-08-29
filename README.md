@@ -35,7 +35,7 @@ An [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin) plugin that turns player r
 - Sends compact evidence embeds with direct links to the case and player profile.
 - Keeps Discord attachments downloadable through fresh CDN links in the webfront.
 - Updates the original Discord message when a case is assigned or reviewed.
-- Uses UK local time in the `HH:mm:ss dd/MM/yyyy` format throughout the webfront and Discord.
+- Uses a configurable timezone in the `HH:mm:ss dd/MM/yyyy` format throughout the webfront and Discord, defaulting to `Europe/London`.
 - Supports default, per-game and per-server webhooks plus optional restricted role notifications.
 
 Only case metadata and review history are retained by the plugin; demo contents are not copied into its state file, and webhook secrets are never displayed or stored there.
@@ -57,6 +57,7 @@ Moderators can then open **Admin → Demo Evidence**. Set IW4MAdmin's `Webfront.
   "Webhook": "https://discord.com/api/webhooks/...",
   "T5DemoPath": "C:\\Plutonium\\storage\\t5\\demos",
   "T6DemoPath": "C:\\Plutonium\\storage\\t6\\demos",
+  "TimeZone": "Europe/London",
   "UploadOnReports": true,
   "UploadOnAutomatedBans": true,
   "AutomatedBanGames": [ "T6" ],
@@ -66,7 +67,7 @@ Moderators can then open **Admin → Demo Evidence**. Set IW4MAdmin's `Webfront.
 }
 ```
 
-The [complete configuration example](examples/DemosToDiscord.json) documents queue timing, retention, demo-capability overrides, per-game/server webhooks and optional Discord role IDs. Server overrides can use an endpoint, legacy server ID or `"*"` fallback.
+The [complete configuration example](examples/DemosToDiscord.json) documents queue timing, retention, demo-capability overrides, per-game/server webhooks and optional Discord role IDs. Server overrides can use an endpoint, legacy server ID or `"*"` fallback. Set `TimeZone` to an IANA timezone such as `UTC`, `America/New_York` or `Australia/Sydney`; invalid values fall back to `Europe/London`.
 
 ## Admin commands
 
