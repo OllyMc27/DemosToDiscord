@@ -4,7 +4,8 @@ public enum EvidenceTriggerType
 {
     Report,
     AutomatedBan,
-    ManualBan
+    ManualBan,
+    ProactiveDetection
 }
 
 public enum EvidenceCaseStatus
@@ -16,7 +17,8 @@ public enum EvidenceCaseStatus
     Uploaded,
     NoDemo,
     Failed,
-    DemoUnsupported
+    DemoUnsupported,
+    DemoReady
 }
 
 public enum DemoSupportStatus
@@ -36,7 +38,8 @@ public enum EvidenceHistoryAction
     Unassigned,
     ReviewChanged,
     ReportsCleared,
-    DiscordSynced
+    DiscordSynced,
+    ProactiveEvaluated
 }
 
 public enum EvidenceReviewDecision
@@ -67,6 +70,8 @@ public sealed class EvidenceCase
     public List<ReportEvidence> Reports { get; set; } = [];
     public AntiCheatEvidence? AntiCheat { get; set; }
     public bool ManualBanObserved { get; set; }
+    public List<ProactiveDetectionEvidence> ProactiveDetections { get; set; } = [];
+    public bool DiscordEligible { get; set; }
     public string? DemoFileName { get; set; }
     public long? DemoFileSize { get; set; }
     public DateTime? DemoStartedAtUtc { get; set; }
@@ -105,9 +110,20 @@ public sealed class EvidenceCase
                 triggers.Add(EvidenceTriggerType.AutomatedBan);
             if (ManualBanObserved)
                 triggers.Add(EvidenceTriggerType.ManualBan);
+            if (ProactiveDetections.Count > 0)
+                triggers.Add(EvidenceTriggerType.ProactiveDetection);
             return triggers;
         }
     }
+}
+
+public sealed class ProactiveDetectionEvidence
+{
+    public DateTime WhenUtc { get; set; }
+    public int RiskScore { get; set; }
+    public ProactiveRiskLevel RiskLevel { get; set; }
+    public string EvaluationReason { get; set; } = string.Empty;
+    public List<ProactiveRiskSignal> Signals { get; set; } = [];
 }
 
 public sealed class EvidenceHistoryEntry

@@ -71,6 +71,7 @@ public sealed class ProactiveEvaluationScheduler : IDisposable
 {
     private readonly ProactiveBaselineService _baselines;
     private readonly ProactiveRiskScorer _scorer;
+    private readonly EvidenceCaseStore _caseStore;
     private readonly IReadOnlyList<IProactiveAssessmentSink> _sinks;
     private readonly DemosToDiscordConfig _config;
     private readonly ILogger<ProactiveEvaluationScheduler> _logger;
@@ -82,12 +83,14 @@ public sealed class ProactiveEvaluationScheduler : IDisposable
     public ProactiveEvaluationScheduler(
         ProactiveBaselineService baselines,
         ProactiveRiskScorer scorer,
+        EvidenceCaseStore caseStore,
         IEnumerable<IProactiveAssessmentSink> sinks,
         DemosToDiscordConfig config,
         ILogger<ProactiveEvaluationScheduler> logger)
     {
         _baselines = baselines;
         _scorer = scorer;
+        _caseStore = caseStore;
         _sinks = sinks.ToList();
         _config = config;
         _logger = logger;
@@ -125,7 +128,8 @@ public sealed class ProactiveEvaluationScheduler : IDisposable
                 {
                     await Task.Delay(TimeSpan.FromSeconds(Math.Max(0, _config.ProactiveEvaluationDelaySeconds)), token);
                     await _baselines.RefreshAsync(token);
-                    var assessment = _scorer.Score(request.ClientId, request.ServerId);
+                    var assessment = _scorer.Score(
+                        request.ClientId, request.ServerId, _caseStore.CountProactiveHistory(request.ClientId));
                     if (assessment.Suppressed)
                     {
                         if (_config.Debug)

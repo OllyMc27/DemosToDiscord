@@ -33,6 +33,8 @@ public sealed class Plugin : IPluginV2
         services.AddSingleton<IProactiveBaselineProvider>(provider => provider.GetRequiredService<ProactiveBaselineService>());
         services.AddSingleton<ProactiveRiskScorer>();
         services.AddSingleton<ProactiveEvaluationScheduler>();
+        services.AddSingleton<ProactiveEvidenceIntegration>();
+        services.AddSingleton<IProactiveAssessmentSink>(provider => provider.GetRequiredService<ProactiveEvidenceIntegration>());
         services.AddSingleton<PlayerTimelineService>();
         services.AddSingleton<EvidenceReviewService>();
         services.AddSingleton<DemoUploadService>();

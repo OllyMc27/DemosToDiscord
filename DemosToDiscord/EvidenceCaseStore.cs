@@ -102,6 +102,7 @@ public sealed class EvidenceCaseStore
             switch (capture.Trigger)
             {
                 case EvidenceTriggerType.Report:
+                    evidenceCase.DiscordEligible = true;
                     evidenceCase.Reports.Add(new ReportEvidence
                     {
                         PenaltyId = capture.PenaltyId,
@@ -112,6 +113,7 @@ public sealed class EvidenceCaseStore
                     });
                     break;
                 case EvidenceTriggerType.AutomatedBan:
+                    evidenceCase.DiscordEligible = true;
                     evidenceCase.AntiCheat = new AntiCheatEvidence
                     {
                         WhenUtc = capture.WhenUtc,
@@ -136,8 +138,101 @@ public sealed class EvidenceCaseStore
 
             PruneUnsafe();
             await SaveUnsafeAsync(token);
+            var needsUpload = created || evidenceCase.Status is EvidenceCaseStatus.NoDemo or EvidenceCaseStatus.Failed or
+                EvidenceCaseStatus.DemoReady or EvidenceCaseStatus.DemoUnsupported ||
+                evidenceCase.DiscordEligible && string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId);
+            return (Clone(evidenceCase), created, needsUpload);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<(EvidenceCase Case, bool Created, bool NeedsUpload)> AddOrMergeProactiveAsync(
+        ProactiveEvaluationRequest request,
+        ProactiveRiskAssessment assessment,
+        CancellationToken token)
+    {
+        await InitializeAsync(token);
+        await _gate.WaitAsync(token);
+        try
+        {
+            var cutoff = request.RequestedAtUtc.AddMinutes(-Math.Max(1, _config.DeduplicationWindowMinutes));
+            var evidenceCase = _cases
+                .Where(item => item.TargetClientId == request.ClientId &&
+                               item.LegacyServerId == request.ServerId &&
+                               item.Map.Equals(request.Map, StringComparison.OrdinalIgnoreCase) &&
+                               item.Mode.Equals(request.Mode, StringComparison.OrdinalIgnoreCase) &&
+                               item.CreatedAtUtc >= cutoff &&
+                               item.CreatedAtUtc <= request.RequestedAtUtc.AddMinutes(5))
+                .OrderByDescending(item => item.CreatedAtUtc)
+                .FirstOrDefault();
+            var created = evidenceCase is null;
+            if (evidenceCase is null)
+            {
+                evidenceCase = new EvidenceCase
+                {
+                    CreatedAtUtc = request.RequestedAtUtc,
+                    UpdatedAtUtc = request.RequestedAtUtc,
+                    ServerId = request.ServerEndpoint,
+                    ServerName = request.ServerName,
+                    LegacyServerId = request.ServerId,
+                    Game = request.Game.ToString(),
+                    Map = request.Map,
+                    Mode = request.Mode,
+                    TargetClientId = request.ClientId,
+                    TargetNetworkId = request.NetworkId,
+                    TargetName = request.PlayerName
+                };
+                evidenceCase.History.Add(new EvidenceHistoryEntry
+                {
+                    WhenUtc = request.RequestedAtUtc,
+                    Action = EvidenceHistoryAction.Created,
+                    Summary = "Case created from proactive statistical review."
+                });
+                _cases.Add(evidenceCase);
+            }
+
+            var duplicate = evidenceCase.ProactiveDetections.Any(item =>
+                Math.Abs((item.WhenUtc - request.RequestedAtUtc).TotalMinutes) < 1 && item.RiskScore == assessment.Score);
+            if (!duplicate)
+            {
+                evidenceCase.ProactiveDetections.Add(new ProactiveDetectionEvidence
+                {
+                    WhenUtc = request.RequestedAtUtc,
+                    RiskScore = assessment.Score,
+                    RiskLevel = assessment.Level,
+                    EvaluationReason = request.Reason,
+                    Signals = assessment.Signals.ToList()
+                });
+                evidenceCase.History.Add(new EvidenceHistoryEntry
+                {
+                    WhenUtc = request.RequestedAtUtc,
+                    Action = EvidenceHistoryAction.ProactiveEvaluated,
+                    Summary = $"Proactive risk assessed as {assessment.Level} ({assessment.Score}/100); human review required."
+                });
+            }
+            evidenceCase.UpdatedAtUtc = DateTime.UtcNow;
+            evidenceCase.ServerName = request.ServerName;
+            evidenceCase.TargetName = request.PlayerName;
+            PruneUnsafe();
+            await SaveUnsafeAsync(token);
             var needsUpload = created || evidenceCase.Status is EvidenceCaseStatus.NoDemo or EvidenceCaseStatus.Failed;
             return (Clone(evidenceCase), created, needsUpload);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public int CountProactiveHistory(int targetClientId)
+    {
+        _gate.Wait();
+        try
+        {
+            return _cases.Count(item => item.TargetClientId == targetClientId && item.ProactiveDetections.Count > 0);
         }
         finally
         {
@@ -247,6 +342,7 @@ public sealed class EvidenceCaseStore
         {
             item.Reports ??= [];
             item.History ??= [];
+            item.ProactiveDetections ??= [];
         }
 
         var cutoff = DateTime.UtcNow.AddDays(-Math.Max(1, _config.CaseRetentionDays));
@@ -281,6 +377,7 @@ public sealed class EvidenceCaseStore
         EvidenceTriggerType.Report => "a player report",
         EvidenceTriggerType.AutomatedBan => "an automated anti-cheat ban",
         EvidenceTriggerType.ManualBan => "a manual ban",
+        EvidenceTriggerType.ProactiveDetection => "proactive statistical review",
         _ => "evidence"
     };
 }
