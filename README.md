@@ -1,4 +1,4 @@
-# DemosToDiscord
+![DemosToDiscord — IW4MAdmin evidence review](docs/images/demostodiscord-banner.png)
 
 [![Release](https://img.shields.io/github/v/release/OllyMc27/DemosToDiscord?style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/OllyMc27/DemosToDiscord/ci.yml?branch=master&style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/actions)
