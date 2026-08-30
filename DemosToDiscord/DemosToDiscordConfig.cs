@@ -34,6 +34,18 @@ public sealed class DemosToDiscordConfig
     public string StateFilePath { get; set; } = "Configuration/DemosToDiscordCases.json";
     public string TimeZone { get; set; } = EvidenceTime.DefaultTimeZoneId;
 
+    // Proactive review uses live IW4MAdmin statistics. It never administers penalties.
+    public bool EnableProactiveDetection { get; set; } = true;
+    public int ProactiveBaselineRefreshMinutes { get; set; } = 5;
+    public string ProactiveBaselineStateFilePath { get; set; } =
+        "Configuration/DemosToDiscordProactiveBaselines.json";
+    public int ProactiveMinimumPopulation { get; set; } = 100;
+    public int ProactiveMinimumTrackedHits { get; set; } = 200;
+    public int ProactiveMinimumHeadEvents { get; set; } = 10;
+    public List<string> ProactiveExcludedGames { get; set; } = [];
+    public List<long> ProactiveExcludedServerIds { get; set; } = [];
+    public bool ProactiveExcludeT5Zombies { get; set; } = true;
+
     public bool SendMetadataOnlyCasesToDiscord { get; set; } = true;
     public string ReportRoleId { get; set; } = string.Empty;
     public string AntiCheatRoleId { get; set; } = string.Empty;

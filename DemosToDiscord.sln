@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.1.11304.174
@@ -9,6 +9,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 	ProjectSection(SolutionItems) = preProject
 		README.md = README.md
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DemosToDiscord.Tests", "DemosToDiscord.Tests\DemosToDiscord.Tests.csproj", "{84338621-A1E9-4526-BF26-7674D9025A58}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -32,6 +34,18 @@ Global
 		{520DB74B-2D7E-4F6A-F783-BE2BD7DFD46B}.Release|x64.Build.0 = Release|Any CPU
 		{520DB74B-2D7E-4F6A-F783-BE2BD7DFD46B}.Release|x86.ActiveCfg = Release|Any CPU
 		{520DB74B-2D7E-4F6A-F783-BE2BD7DFD46B}.Release|x86.Build.0 = Release|Any CPU
+		{84338621-A1E9-4526-BF26-7674D9025A58}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{84338621-A1E9-4526-BF26-7674D9025A58}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{84338621-A1E9-4526-BF26-7674D9025A58}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{84338621-A1E9-4526-BF26-7674D9025A58}.Debug|x64.Build.0 = Debug|Any CPU
+		{84338621-A1E9-4526-BF26-7674D9025A58}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{84338621-A1E9-4526-BF26-7674D9025A58}.Debug|x86.Build.0 = Debug|Any CPU
+		{84338621-A1E9-4526-BF26-7674D9025A58}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{84338621-A1E9-4526-BF26-7674D9025A58}.Release|Any CPU.Build.0 = Release|Any CPU
+		{84338621-A1E9-4526-BF26-7674D9025A58}.Release|x64.ActiveCfg = Release|Any CPU
+		{84338621-A1E9-4526-BF26-7674D9025A58}.Release|x64.Build.0 = Release|Any CPU
+		{84338621-A1E9-4526-BF26-7674D9025A58}.Release|x86.ActiveCfg = Release|Any CPU
+		{84338621-A1E9-4526-BF26-7674D9025A58}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -40,4 +54,3 @@ Global
 		SolutionGuid = {C0CA7234-6CA8-40FB-947F-1DD3D89E5E91}
 	EndGlobalSection
 EndGlobal
-

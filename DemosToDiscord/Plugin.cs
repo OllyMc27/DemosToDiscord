@@ -10,6 +10,7 @@ namespace DemosToDiscord;
 public sealed class Plugin : IPluginV2
 {
     private readonly DemoUploadService _service;
+    private readonly ProactiveBaselineService _proactiveBaselines;
     private readonly DemosToDiscordWebfront _webfront;
     private readonly DemosToDiscordConfig _config;
     private readonly ILogger<Plugin> _logger;
@@ -26,6 +27,7 @@ public sealed class Plugin : IPluginV2
         services.AddSingleton<DemoLocator>();
         services.AddSingleton<DiscordWebhookClient>();
         services.AddSingleton<AntiCheatMetricsService>();
+        services.AddSingleton<ProactiveBaselineService>();
         services.AddSingleton<PlayerTimelineService>();
         services.AddSingleton<EvidenceReviewService>();
         services.AddSingleton<DemoUploadService>();
@@ -35,10 +37,12 @@ public sealed class Plugin : IPluginV2
     public Plugin(
         DemoUploadService service,
         DemosToDiscordWebfront webfront,
+        ProactiveBaselineService proactiveBaselines,
         DemosToDiscordConfig config,
         ILogger<Plugin> logger)
     {
         _service = service;
+        _proactiveBaselines = proactiveBaselines;
         _webfront = webfront;
         _config = config;
         _logger = logger;
@@ -56,6 +60,7 @@ public sealed class Plugin : IPluginV2
     private async Task OnLoad(IManager _, CancellationToken token)
     {
         await _service.StartAsync(token);
+        await _proactiveBaselines.StartAsync(token);
         Console.WriteLine($"[{Name}] by {Author} loaded. Version: {Version}");
         Console.WriteLine($"[{Name}] report evidence: {(_config.UploadOnReports ? "enabled" : "disabled")}; anti-cheat evidence: {(_config.UploadOnAutomatedBans ? string.Join(", ", _config.AutomatedBanGames) : "disabled")}");
 
@@ -92,6 +97,10 @@ public sealed class Plugin : IPluginV2
             config.StateFilePath = "Configuration/DemosToDiscordCases.json";
         if (string.IsNullOrWhiteSpace(config.TimeZone))
             config.TimeZone = EvidenceTime.DefaultTimeZoneId;
+        config.ProactiveExcludedGames ??= [];
+        config.ProactiveExcludedServerIds ??= [];
+        if (string.IsNullOrWhiteSpace(config.ProactiveBaselineStateFilePath))
+            config.ProactiveBaselineStateFilePath = "Configuration/DemosToDiscordProactiveBaselines.json";
     }
 
     public void Dispose()
@@ -103,6 +112,7 @@ public sealed class Plugin : IPluginV2
         IManagementEventSubscriptions.Load -= OnLoad;
         _webfront.Dispose();
         _service.Dispose();
+        _proactiveBaselines.Dispose();
         _logger.LogInformation("[{Name}] unloaded", Name);
     }
 }
