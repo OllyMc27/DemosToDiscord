@@ -43,6 +43,7 @@ public sealed class DemosToDiscordConfig
     public bool SendMetadataOnlyCasesToDiscord { get; set; } = true;
     public string ReportRoleId { get; set; } = string.Empty;
     public string AntiCheatRoleId { get; set; } = string.Empty;
+    public string ProactiveRoleId { get; set; } = string.Empty;
     public bool MentionRolesOnlyWhenDemoReady { get; set; }
     public Dictionary<string, string> GameWebhooks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -63,6 +64,7 @@ public sealed class DemosToDiscordServerOverride
     public bool? SendMetadataOnlyCasesToDiscord { get; set; }
     public string? ReportRoleId { get; set; }
     public string? AntiCheatRoleId { get; set; }
+    public string? ProactiveRoleId { get; set; }
     public bool? EnableProactiveDetection { get; set; }
 }
 

@@ -572,12 +572,19 @@ public sealed class DemoUploadService : IDisposable
     private DiscordDeliveryOptions ResolveDeliveryOptions(EvidenceCase evidenceCase, bool hasDemo)
     {
         var serverOverride = ResolveOverride(evidenceCase.ServerId, evidenceCase.LegacyServerId);
-        var roleId = evidenceCase.AntiCheat is not null
-            ? serverOverride?.AntiCheatRoleId ?? _config.AntiCheatRoleId
-            : serverOverride?.ReportRoleId ?? _config.ReportRoleId;
+        var roleId = SelectRoleId(evidenceCase, _config, serverOverride);
         var mention = !string.IsNullOrWhiteSpace(roleId) && (!_config.MentionRolesOnlyWhenDemoReady || hasDemo);
         return new DiscordDeliveryOptions(roleId, mention);
     }
+
+    internal static string? SelectRoleId(
+        EvidenceCase evidenceCase,
+        DemosToDiscordConfig config,
+        DemosToDiscordServerOverride? serverOverride) => evidenceCase.AntiCheat is not null
+        ? serverOverride?.AntiCheatRoleId ?? config.AntiCheatRoleId
+        : evidenceCase.ProactiveDetectionObserved
+            ? serverOverride?.ProactiveRoleId ?? config.ProactiveRoleId
+            : serverOverride?.ReportRoleId ?? config.ReportRoleId;
 
     private DemosToDiscordServerOverride? ResolveOverride(string serverId, long? legacyServerId)
     {

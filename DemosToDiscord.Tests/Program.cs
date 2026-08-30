@@ -24,6 +24,7 @@ internal static class Program
             ("extreme and multi-signal risk scoring", RiskScoringAsync),
             ("baseline rebuild and live player evaluation", BaselineEvaluationAsync),
             ("T6, IW5, T4, T5 and Zombies capability fallbacks", CapabilityFallbacksAsync),
+            ("proactive case merge and Discord role routing", ProactiveRoutingAsync),
             ("native player note append preserves manual text", PlayerNoteIntegrationAsync)
         };
 
@@ -164,6 +165,17 @@ internal static class Program
         True(!result.Created, "report merged into recent case");
         Equal(1, store.Snapshot().Cases.Count, "merge did not duplicate case");
         Equal(1, store.Snapshot().Cases[0].Reports.Count, "merged report retained");
+        var proactive = await store.AddOrMergeAsync(capture with
+        {
+            Trigger = EvidenceTriggerType.ProactiveDetection,
+            WhenUtc = legacy.CreatedAtUtc.AddMinutes(1.5),
+            ReporterClientId = 0,
+            ReporterName = "DemosToDiscord detector",
+            Reason = "Statistical outlier"
+        }, CancellationToken.None);
+        True(!proactive.Created, "proactive evidence merges into the recent report case");
+        True(proactive.Case.ProactiveDetectionObserved, "merged case retains proactive source");
+        Equal(1, store.Snapshot().Cases.Count, "proactive merge does not duplicate the case");
         var linked = await store.LinkManualBanAsync(
             legacy.TargetClientId,
             legacy.CreatedAtUtc.AddMinutes(2),
@@ -360,6 +372,28 @@ internal static class Program
             EnableProactiveDetection = false
         });
         True(!disabled.EligibleForScoring, "server override disables proactive scoring");
+        return Task.CompletedTask;
+    }
+
+    private static Task ProactiveRoutingAsync()
+    {
+        var config = new DemosToDiscordConfig
+        {
+            ReportRoleId = "report-role",
+            AntiCheatRoleId = "anti-role",
+            ProactiveRoleId = "proactive-role"
+        };
+        var item = Case("role-case", DateTime.UtcNow);
+        Equal("report-role", DemoUploadService.SelectRoleId(item, config, null), "report-only role");
+        item.ProactiveDetectionObserved = true;
+        Equal("proactive-role", DemoUploadService.SelectRoleId(item, config, null), "proactive-only role");
+        item.Reports.Add(new ReportEvidence());
+        Equal("proactive-role", DemoUploadService.SelectRoleId(item, config, null), "proactive case does not borrow report role");
+        item.AntiCheat = new AntiCheatEvidence();
+        Equal("anti-role", DemoUploadService.SelectRoleId(item, config, null), "anti-cheat role has corroborated-case priority");
+        var serverOverride = new DemosToDiscordServerOverride { ProactiveRoleId = "server-proactive" };
+        item.AntiCheat = null;
+        Equal("server-proactive", DemoUploadService.SelectRoleId(item, config, serverOverride), "server proactive role override");
         return Task.CompletedTask;
     }
 

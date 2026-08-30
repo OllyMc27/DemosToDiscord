@@ -13,6 +13,7 @@
 - Added delayed, deduplicated evaluation after match end and player disconnect, with unchanged-data suppression.
 - Added live T6/IW5 weapon-specific tracked-hit head-rate observations and conservative T4/T5 cumulative head-rate fallbacks. T5 Zombies remains excluded.
 - Added proactive case creation/merging, demo routing, Discord delivery and audit history without automatic punishment.
+- Added a separate proactive Discord role route so statistical cases never implicitly mention the report role.
 - Added `!dtdbaseline` health reporting and a SeniorAdmin-only `!dtdrebuildbaseline` command.
 - Expanded verification to cover a 40,800-event baseline rebuild, attachment normalization, population evaluation and duplicate suppression.
 

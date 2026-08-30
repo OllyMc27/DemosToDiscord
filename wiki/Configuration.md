@@ -108,6 +108,7 @@ The paths must belong to the Windows account that records the demos. A service a
 | `SendMetadataOnlyCasesToDiscord` | Boolean | `true` | Sends unsupported-game/mode cases without a demo attachment. |
 | `ReportRoleId` | String | Empty | Numeric Discord role ID for report evidence. Empty disables the mention. |
 | `AntiCheatRoleId` | String | Empty | Numeric Discord role ID for anti-cheat evidence. Empty disables the mention. |
+| `ProactiveRoleId` | String | Empty | Numeric Discord role ID for proactive review cases. Empty prevents proactive-only cases from borrowing the report role. |
 | `MentionRolesOnlyWhenDemoReady` | Boolean | `false` | Suppresses role mentions until a demo is attached when `true`. |
 | `GameWebhooks` | Object | Empty | Maps game codes such as `T5`/`T6` to webhook URLs. |
 | `ServerOverrides` | Object | Empty | Maps an endpoint, legacy server ID or `*` to server-specific settings. |
@@ -126,6 +127,7 @@ The paths must belong to the Windows account that records the demos. A service a
 | `SendMetadataOnlyCasesToDiscord` | Nullable Boolean | Overrides metadata-only Discord delivery. |
 | `ReportRoleId` | String | Overrides the report role ID. |
 | `AntiCheatRoleId` | String | Overrides the anti-cheat role ID. |
+| `ProactiveRoleId` | String | Overrides the proactive-review role ID. |
 | `EnableProactiveDetection` | Nullable Boolean | Enables/disables proactive evaluation for the server; use `false` for T5 Zombies. |
 
 Server override selection: exact endpoint → legacy server ID → `"*"` fallback → global settings.
@@ -186,6 +188,7 @@ Webhook selection: server override → `GameWebhooks` → default `Webhook`.
   "SendMetadataOnlyCasesToDiscord": true,
   "ReportRoleId": "",
   "AntiCheatRoleId": "",
+  "ProactiveRoleId": "",
   "MentionRolesOnlyWhenDemoReady": false,
   "GameWebhooks": {
     "T5": "",
@@ -200,7 +203,8 @@ Webhook selection: server override → `GameWebhooks` → default `Webhook`.
       "EnableProactiveDetection": true,
       "SendMetadataOnlyCasesToDiscord": true,
       "ReportRoleId": "",
-      "AntiCheatRoleId": ""
+      "AntiCheatRoleId": "",
+      "ProactiveRoleId": ""
     }
   }
 }
@@ -250,6 +254,7 @@ Webhook selection: server override → `GameWebhooks` → default `Webhook`.
 ```json
 "ReportRoleId": "123456789012345678",
 "AntiCheatRoleId": "234567890123456789",
+"ProactiveRoleId": "345678901234567890",
 "MentionRolesOnlyWhenDemoReady": true
 ```
 
