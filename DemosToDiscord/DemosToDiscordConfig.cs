@@ -48,6 +48,9 @@ public sealed class DemosToDiscordConfig
     public int ProactiveCaseRiskThreshold { get; set; } = 50;
     public int ProactiveDiscordRiskThreshold { get; set; } = 65;
     public int ProactiveRepeatHistoryWeight { get; set; } = 4;
+    public int ProactiveEvaluationDelaySeconds { get; set; } = 20;
+    public int ProactiveEvaluationDeduplicationMinutes { get; set; } = 30;
+    public int ProactiveEvaluationQueueCapacity { get; set; } = 1000;
 
     public bool SendMetadataOnlyCasesToDiscord { get; set; } = true;
     public string ReportRoleId { get; set; } = string.Empty;

@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SharedLibraryCore;
 using SharedLibraryCore.Events.Management;
+using SharedLibraryCore.Events.Game;
 using SharedLibraryCore.Interfaces;
 using SharedLibraryCore.Interfaces.Events;
 
@@ -11,6 +12,7 @@ public sealed class Plugin : IPluginV2
 {
     private readonly DemoUploadService _service;
     private readonly ProactiveBaselineService _proactiveBaselines;
+    private readonly ProactiveEvaluationScheduler _proactiveScheduler;
     private readonly DemosToDiscordWebfront _webfront;
     private readonly DemosToDiscordConfig _config;
     private readonly ILogger<Plugin> _logger;
@@ -30,6 +32,7 @@ public sealed class Plugin : IPluginV2
         services.AddSingleton<ProactiveBaselineService>();
         services.AddSingleton<IProactiveBaselineProvider>(provider => provider.GetRequiredService<ProactiveBaselineService>());
         services.AddSingleton<ProactiveRiskScorer>();
+        services.AddSingleton<ProactiveEvaluationScheduler>();
         services.AddSingleton<PlayerTimelineService>();
         services.AddSingleton<EvidenceReviewService>();
         services.AddSingleton<DemoUploadService>();
@@ -40,11 +43,13 @@ public sealed class Plugin : IPluginV2
         DemoUploadService service,
         DemosToDiscordWebfront webfront,
         ProactiveBaselineService proactiveBaselines,
+        ProactiveEvaluationScheduler proactiveScheduler,
         DemosToDiscordConfig config,
         ILogger<Plugin> logger)
     {
         _service = service;
         _proactiveBaselines = proactiveBaselines;
+        _proactiveScheduler = proactiveScheduler;
         _webfront = webfront;
         _config = config;
         _logger = logger;
@@ -53,6 +58,8 @@ public sealed class Plugin : IPluginV2
             _logger.LogWarning("[{Name}] time zone {TimeZone} was not recognised; using {Fallback}", Name, _config.TimeZone, EvidenceTime.DefaultTimeZoneId);
 
         IManagementEventSubscriptions.ClientPenaltyAdministered += OnClientPenaltyAdministered;
+        IManagementEventSubscriptions.ClientStateDisposed += OnClientStateDisposed;
+        IGameEventSubscriptions.MatchEnded += OnMatchEnded;
         IManagementEventSubscriptions.Load += OnLoad;
         _webfront.Register();
 
@@ -83,6 +90,38 @@ public sealed class Plugin : IPluginV2
     private Task OnClientPenaltyAdministered(ClientPenaltyEvent penaltyEvent, CancellationToken token) =>
         _service.HandlePenaltyAsync(penaltyEvent, token);
 
+    private Task OnClientStateDisposed(ClientStateDisposeEvent clientEvent, CancellationToken token)
+    {
+        var client = clientEvent.Client;
+        var server = client.CurrentServer;
+        if (server is not null && !client.IsBot)
+            _proactiveScheduler.Schedule(CreateEvaluation(client, server, "client disconnect"));
+        return Task.CompletedTask;
+    }
+
+    private Task OnMatchEnded(MatchEndEvent matchEvent, CancellationToken token)
+    {
+        foreach (var client in matchEvent.Server.ConnectedClients.Where(client => !client.IsBot))
+            _proactiveScheduler.Schedule(CreateEvaluation(client, matchEvent.Server, "match ended"));
+        return Task.CompletedTask;
+    }
+
+    private static ProactiveEvaluationRequest CreateEvaluation(
+        SharedLibraryCore.Database.Models.EFClient client,
+        IGameServer server,
+        string reason) => new(
+        client.ClientId,
+        client.NetworkId,
+        client.CleanedName ?? client.Name ?? "Unknown",
+        server.LegacyDatabaseId,
+        server.Id,
+        server.ServerName,
+        server.GameCode,
+        server.Map?.Name ?? string.Empty,
+        server.Gametype ?? string.Empty,
+        DateTime.UtcNow,
+        reason);
+
     private static void NormalizeConfiguration(DemosToDiscordConfig config)
     {
         config.AutomatedBanGames ??= ["T6"];
@@ -111,9 +150,12 @@ public sealed class Plugin : IPluginV2
             return;
         _disposed = true;
         IManagementEventSubscriptions.ClientPenaltyAdministered -= OnClientPenaltyAdministered;
+        IManagementEventSubscriptions.ClientStateDisposed -= OnClientStateDisposed;
+        IGameEventSubscriptions.MatchEnded -= OnMatchEnded;
         IManagementEventSubscriptions.Load -= OnLoad;
         _webfront.Dispose();
         _service.Dispose();
+        _proactiveScheduler.Dispose();
         _proactiveBaselines.Dispose();
         _logger.LogInformation("[{Name}] unloaded", Name);
     }
