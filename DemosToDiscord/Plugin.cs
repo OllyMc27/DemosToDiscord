@@ -28,6 +28,8 @@ public sealed class Plugin : IPluginV2
         services.AddSingleton<DiscordWebhookClient>();
         services.AddSingleton<AntiCheatMetricsService>();
         services.AddSingleton<ProactiveBaselineService>();
+        services.AddSingleton<IProactiveBaselineProvider>(provider => provider.GetRequiredService<ProactiveBaselineService>());
+        services.AddSingleton<ProactiveRiskScorer>();
         services.AddSingleton<PlayerTimelineService>();
         services.AddSingleton<EvidenceReviewService>();
         services.AddSingleton<DemoUploadService>();

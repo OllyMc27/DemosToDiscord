@@ -45,6 +45,9 @@ public sealed class DemosToDiscordConfig
     public List<string> ProactiveExcludedGames { get; set; } = [];
     public List<long> ProactiveExcludedServerIds { get; set; } = [];
     public bool ProactiveExcludeT5Zombies { get; set; } = true;
+    public int ProactiveCaseRiskThreshold { get; set; } = 50;
+    public int ProactiveDiscordRiskThreshold { get; set; } = 65;
+    public int ProactiveRepeatHistoryWeight { get; set; } = 4;
 
     public bool SendMetadataOnlyCasesToDiscord { get; set; } = true;
     public string ReportRoleId { get; set; } = string.Empty;

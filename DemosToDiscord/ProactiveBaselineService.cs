@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DemosToDiscord;
 
-public sealed class ProactiveBaselineService : IDisposable
+public sealed class ProactiveBaselineService : IProactiveBaselineProvider, IDisposable
 {
     private const int HeadHitLocation = 2;
     private readonly IDatabaseContextFactory _databaseContextFactory;

@@ -13,6 +13,17 @@ public enum ProactiveMetric
     AverageSnap
 }
 
+public interface IProactiveBaselineProvider
+{
+    bool IsAvailable { get; }
+    ProactiveBaselineMember? GetPlayer(int clientId, long serverId);
+    ProactivePopulationBaseline? GetPopulation(
+        ProactiveMetric metric,
+        Reference.Game game,
+        long? serverId = null,
+        string? weapon = null);
+}
+
 public sealed class ProactiveBaselineState
 {
     public int SchemaVersion { get; set; } = 1;
