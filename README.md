@@ -64,7 +64,7 @@ Only case metadata and review history are retained by the plugin; demo contents 
 
 <!-- Replace the note above with: ![Metadata-only evidence case](docs/images/webfront-metadata-only.png) -->
 
-Capture at a readable desktop width using the same theme, and blur public IP addresses or player identifiers you do not want published. The [Wiki screenshot checklist](https://github.com/OllyMc27/DemosToDiscord/wiki#screenshot-checklist) has the full framing notes.
+Capture at a readable desktop width using the same theme, and blur public IP addresses or player identifiers you do not want published. The [Wiki screenshot checklist](https://github.com/OllyMc27/DemosToDiscord/wiki/Screenshots) has the full framing notes.
 
 ## Installation
 
@@ -93,7 +93,7 @@ Moderators can then open **Admin → Demo Evidence**. Set IW4MAdmin's `Webfront.
 }
 ```
 
-The [complete configuration example](examples/DemosToDiscord.json) documents queue timing, retention, demo-capability overrides, per-game/server webhooks and optional Discord role IDs. Server overrides can use an endpoint, legacy server ID or `"*"` fallback. Set `TimeZone` to an IANA timezone such as `UTC`, `America/New_York` or `Australia/Sydney`; invalid values fall back to `Europe/London`. See the [Wiki configuration reference](https://github.com/OllyMc27/DemosToDiscord/wiki#complete-configuration-reference) for every setting.
+The [complete configuration example](examples/DemosToDiscord.json) documents queue timing, retention, demo-capability overrides, per-game/server webhooks and optional Discord role IDs. Server overrides can use an endpoint, legacy server ID or `"*"` fallback. Set `TimeZone` to an IANA timezone such as `UTC`, `America/New_York` or `Australia/Sydney`; invalid values fall back to `Europe/London`. See the [Wiki configuration reference](https://github.com/OllyMc27/DemosToDiscord/wiki/Configuration) for every setting.
 
 ## Admin commands
 
