@@ -8,15 +8,15 @@ This Wiki covers DemosToDiscord 2.3.x.
 
 | Guide | What it covers |
 |---|---|
-| [[Installation-and-Upgrades]] | Requirements, first installation, upgrading and first-run checks. |
+| [Installation and Upgrades](Installation-and-Upgrades) | Requirements, first installation, upgrading and first-run checks. |
 | [[Configuration]] | Every configuration setting, accepted values and complete examples. |
-| [[Language-and-Timezones]] | Current language support, timestamp format and timezone choices. |
-| [[Evidence-Workflow]] | Reports, automated bans, manual bans and case lifecycle. |
-| [[Demo-Matching]] | Filename parsing, T6 GUID confirmation, mode fallback and missing demos. |
-| [[Webfront-Guide]] | Evidence queue, filters, case review, metrics and admin actions. |
-| [[Discord-Integration]] | Webhooks, routing, role mentions, attachments and case links. |
-| [[Admin-Commands]] | Every in-game command and required permission. |
-| [[Privacy-and-Data]] | What is stored, what is not stored and recommended protections. |
+| [Language and Timezones](Language-and-Timezones) | Current language support, timestamp format and timezone choices. |
+| [Evidence Workflow](Evidence-Workflow) | Reports, automated bans, manual bans and case lifecycle. |
+| [Demo Matching](Demo-Matching) | Filename parsing, T6 GUID confirmation, mode fallback and missing demos. |
+| [Webfront Guide](Webfront-Guide) | Evidence queue, filters, case review, metrics and admin actions. |
+| [Discord Integration](Discord-Integration) | Webhooks, routing, role mentions, attachments and case links. |
+| [Admin Commands](Admin-Commands) | Every in-game command and required permission. |
+| [Privacy and Data](Privacy-and-Data) | What is stored, what is not stored and recommended protections. |
 | [[Troubleshooting]] | Common startup, demo, Discord and webfront problems. |
 | [[Screenshots]] | Exact screenshots required for the README and Wiki. |
 
@@ -52,4 +52,4 @@ This Wiki covers DemosToDiscord 2.3.x.
 5. Set the Discord webhook and the T5/T6 demo paths.
 6. Restart IW4MAdmin and open **Admin → Demo Evidence**.
 
-Continue with [[Installation-and-Upgrades]] or jump directly to the complete [[Configuration]] reference.
+Continue with [[Installation and Upgrades|Installation-and-Upgrades]] or jump directly to the complete [[Configuration]] reference.

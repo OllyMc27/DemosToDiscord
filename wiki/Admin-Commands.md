@@ -28,4 +28,4 @@ The case ID appears on the evidence queue, case page and Discord embed.
 
 Command prefixes follow the IW4MAdmin server configuration. The examples use `!`.
 
-Next: [[Troubleshooting]] or [[Webfront-Guide]].
+Next: [[Troubleshooting]] or [[Webfront Guide|Webfront-Guide]].

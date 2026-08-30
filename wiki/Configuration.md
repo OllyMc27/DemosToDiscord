@@ -72,7 +72,7 @@ The paths must belong to the Windows account that records the demos. A service a
 | `CaseRetentionDays` | Integer | `90` | Cases older than this are pruned. Positive value. |
 | `MaxStoredCases` | Integer | `500` | Maximum retained cases; oldest are removed first. Positive value. |
 | `StateFilePath` | String | `Configuration/DemosToDiscordCases.json` | Absolute path or path relative to IW4MAdmin. |
-| `TimeZone` | String | `Europe/London` | IANA timezone used for webfront and Discord. See [[Language-and-Timezones]]. |
+| `TimeZone` | String | `Europe/London` | IANA timezone used for webfront and Discord. See [Language and Timezones](Language-and-Timezones). |
 
 ### Discord delivery
 
@@ -237,4 +237,4 @@ Restart, reproduce one case, save the relevant log lines, then return `Debug` to
 - Never expose a complete webhook URL publicly.
 - Restart the whole IW4MAdmin process after changes.
 
-Next: [[Language-and-Timezones]], [[Discord-Integration]] or [[Troubleshooting]].
+Next: [[Language and Timezones|Language-and-Timezones]], [[Discord Integration|Discord-Integration]] or [[Troubleshooting]].

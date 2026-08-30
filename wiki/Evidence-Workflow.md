@@ -67,6 +67,6 @@ Cases are retained according to both:
 - `CaseRetentionDays`;
 - `MaxStoredCases`.
 
-The oldest cases are pruned first. See [[Privacy-and-Data]] for the retained fields.
+The oldest cases are pruned first. See [[Privacy and Data|Privacy-and-Data]] for the retained fields.
 
-Next: [[Demo-Matching]] or [[Webfront-Guide]].
+Next: [[Demo Matching|Demo-Matching]] or [[Webfront Guide|Webfront-Guide]].

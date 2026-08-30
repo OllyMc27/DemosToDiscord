@@ -85,4 +85,4 @@ The log then records each scanned file and a result such as:
 
 Use `!dtdfind <case-id>` to preview the current best candidate. Return `Debug` to `false` after collecting the required diagnostics.
 
-Next: [[Troubleshooting]] or [[Evidence-Workflow]].
+Next: [[Troubleshooting]] or [[Evidence Workflow|Evidence-Workflow]].

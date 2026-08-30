@@ -100,4 +100,4 @@ Run:
 
 This tests the default webhook and requires SeniorAdmin. It does not test every per-game or per-server route.
 
-Next: [[Configuration]], [[Troubleshooting]] or [[Privacy-and-Data]].
+Next: [[Configuration]], [[Troubleshooting]] or [[Privacy and Data|Privacy-and-Data]].

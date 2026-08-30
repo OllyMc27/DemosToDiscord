@@ -1,15 +1,15 @@
 ## DemosToDiscord
 
 - [[Home]]
-- [[Installation-and-Upgrades|Installation & upgrades]]
+- [[Installation & upgrades|Installation-and-Upgrades]]
 - [[Configuration]]
-- [[Language-and-Timezones|Language & timezones]]
-- [[Evidence-Workflow|Evidence workflow]]
-- [[Demo-Matching|Demo matching]]
-- [[Webfront-Guide|Webfront guide]]
-- [[Discord-Integration|Discord integration]]
-- [[Admin-Commands|Admin commands]]
-- [[Privacy-and-Data|Privacy & data]]
+- [[Language & timezones|Language-and-Timezones]]
+- [[Evidence workflow|Evidence-Workflow]]
+- [[Demo matching|Demo-Matching]]
+- [[Webfront guide|Webfront-Guide]]
+- [[Discord integration|Discord-Integration]]
+- [[Admin commands|Admin-Commands]]
+- [[Privacy & data|Privacy-and-Data]]
 - [[Troubleshooting]]
 - [[Screenshots]]
 

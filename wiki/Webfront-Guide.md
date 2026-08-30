@@ -82,4 +82,4 @@ Moderators can:
 
 The lower sections show previous retained cases for the player and an audit trail of creation, evidence, assignment, report-clearing and review changes.
 
-Next: [[Evidence-Workflow]], [[Discord-Integration]] or [[Screenshots]].
+Next: [[Evidence Workflow|Evidence-Workflow]], [[Discord Integration|Discord-Integration]] or [[Screenshots]].

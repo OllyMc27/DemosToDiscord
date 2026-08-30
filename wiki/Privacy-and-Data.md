@@ -54,4 +54,4 @@ Before publishing screenshots:
 - consider anonymising reporter names;
 - include only the log window needed to demonstrate the problem.
 
-Next: [[Configuration]], [[Discord-Integration]] or [[Screenshots]].
+Next: [[Configuration]], [[Discord Integration|Discord-Integration]] or [[Screenshots]].

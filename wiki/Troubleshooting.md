@@ -47,7 +47,7 @@ T6 demo filenames use game codes such as:
 - `koth` = Hardpoint;
 - `hq` = Headquarters.
 
-IW4MAdmin can briefly report the previous/live mode around a rotation. T6 therefore treats mode as a scoring preference when map, time and target GUID identify a stronger candidate. See [[Demo-Matching]].
+IW4MAdmin can briefly report the previous/live mode around a rotation. T6 therefore treats mode as a scoring preference when map, time and target GUID identify a stronger candidate. See [[Demo Matching|Demo-Matching]].
 
 ## No Discord message
 
@@ -115,7 +115,7 @@ Use a current 2.3.x build. Manual bans should only link to a recent existing cas
 ## Times are incorrect
 
 - Check `TimeZone` spelling.
-- Use an IANA identifier from [[Language-and-Timezones]].
+- Use an IANA identifier from [[Language and Timezones|Language-and-Timezones]].
 - Restart IW4MAdmin after changing it.
 - Invalid values fall back to `Europe/London` and log a warning.
 
