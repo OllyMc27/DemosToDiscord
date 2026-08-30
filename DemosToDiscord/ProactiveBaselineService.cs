@@ -41,7 +41,8 @@ public sealed class ProactiveBaselineService : IProactiveBaselineProvider, IDisp
             return;
         _initialized = true;
         await LoadStateAsync(token);
-        await RefreshAsync(token);
+        lock (_stateGate)
+            IsAvailable = _state.Members.Count > 0;
         _refreshLoop = Task.Run(() => RefreshLoopAsync(_shutdown.Token), CancellationToken.None);
     }
 
@@ -220,7 +221,7 @@ public sealed class ProactiveBaselineService : IProactiveBaselineProvider, IDisp
         var changedHitPairs = await context.HitStatistics.AsNoTracking()
             .Where(item => (item.UpdatedDateTime ?? item.CreatedDateTime) > hitWatermark && item.ServerId != null)
             .Select(item => new { item.ClientId, ServerId = item.ServerId!.Value })
-            .Distinct().Take(1000).ToListAsync(token);
+            .Distinct().ToListAsync(token);
         foreach (var pair in changedHitPairs)
             await RefreshHitPairAsync(context, state, pair.ClientId, pair.ServerId, token);
 
@@ -336,6 +337,7 @@ public sealed class ProactiveBaselineService : IProactiveBaselineProvider, IDisp
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(Math.Max(1, _config.ProactiveBaselineRefreshMinutes)));
         try
         {
+            await RefreshAsync(token);
             while (await timer.WaitForNextTickAsync(token))
                 await RefreshAsync(token);
         }

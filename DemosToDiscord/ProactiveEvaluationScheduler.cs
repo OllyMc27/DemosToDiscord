@@ -16,7 +16,8 @@ public sealed record ProactiveEvaluationRequest(
     string Map,
     string Mode,
     DateTime RequestedAtUtc,
-    string Reason);
+    string Reason,
+    DateTime? SessionStartedAtUtc = null);
 
 public interface IProactiveAssessmentSink
 {
@@ -48,7 +49,9 @@ public sealed class ProactiveEvaluationDeduplicator(TimeSpan window)
 
     public bool TryAcquire(ProactiveEvaluationRequest request, DateTime nowUtc)
     {
-        var key = $"{request.ClientId}:{request.ServerId}";
+        var fallbackBucket = request.RequestedAtUtc.Ticks / TimeSpan.FromMinutes(5).Ticks;
+        var session = request.SessionStartedAtUtc?.Ticks.ToString() ?? fallbackBucket.ToString();
+        var key = $"{request.ClientId}:{request.ServerId}:{request.Map}:{request.Mode}:{session}";
         while (true)
         {
             if (!_recent.TryGetValue(key, out var previous))

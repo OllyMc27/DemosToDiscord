@@ -58,12 +58,22 @@ public sealed class ProactiveRiskScorerTests
         Assert.DoesNotContain(result.Signals, item => item.Label.Contains("accuracy", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void BaselineFailureSuppressesRiskWithoutThrowing()
+    {
+        var provider = new FakeProvider(new ProactiveBaselineMember()) { Available = false };
+        var assessment = new ProactiveRiskScorer(provider, Config()).Score(1, 2);
+        Assert.True(assessment.Suppressed);
+        Assert.Equal(0, assessment.Score);
+    }
+
     private static FakeProvider Provider(ProactiveBaselineMember member) => new(member);
     private static DemosToDiscordConfig Config() => new() { ProactiveMinimumPopulation = 100 };
 
     private sealed class FakeProvider(ProactiveBaselineMember member) : IProactiveBaselineProvider
     {
-        public bool IsAvailable => true;
+        public bool Available { get; set; } = true;
+        public bool IsAvailable => Available;
         public ProactiveBaselineMember? GetPlayer(int clientId, long serverId) => member;
         public ProactivePopulationBaseline? GetPopulation(ProactiveMetric metric, Reference.Game game, long? serverId = null, string? weapon = null)
         {

@@ -16,6 +16,17 @@ public sealed class ProactiveEvaluationTests
         Assert.True(deduplicator.TryAcquire(request, now.AddMinutes(31)));
     }
 
+    [Fact]
+    public void NewSessionOnSameMapIsNotSuppressed()
+    {
+        var deduplicator = new ProactiveEvaluationDeduplicator(TimeSpan.FromMinutes(30));
+        var now = DateTime.UtcNow;
+        var first = Request() with { RequestedAtUtc = now, SessionStartedAtUtc = now.AddMinutes(-10) };
+        var second = Request() with { RequestedAtUtc = now.AddMinutes(15), SessionStartedAtUtc = now.AddMinutes(12) };
+        Assert.True(deduplicator.TryAcquire(first, now));
+        Assert.True(deduplicator.TryAcquire(second, now.AddMinutes(15)));
+    }
+
     [Theory]
     [InlineData(Reference.Game.T6, true, true, true)]
     [InlineData(Reference.Game.IW5, true, true, false)]

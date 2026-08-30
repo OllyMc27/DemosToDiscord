@@ -47,6 +47,7 @@ public sealed class DemosToDiscordConfig
     public bool ProactiveExcludeT5Zombies { get; set; } = true;
     public int ProactiveCaseRiskThreshold { get; set; } = 50;
     public int ProactiveDiscordRiskThreshold { get; set; } = 65;
+    public bool EnableProactiveDiscordNotifications { get; set; } = true;
     public int ProactiveRepeatHistoryWeight { get; set; } = 4;
     public int ProactiveEvaluationDelaySeconds { get; set; } = 20;
     public int ProactiveEvaluationDeduplicationMinutes { get; set; } = 30;

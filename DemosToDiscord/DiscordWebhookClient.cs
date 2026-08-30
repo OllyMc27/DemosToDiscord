@@ -162,6 +162,8 @@ public sealed class DiscordWebhookClient : IDisposable
             evidenceSources.Add("automated anti-cheat ban");
         if (evidenceCase.ManualBanObserved)
             evidenceSources.Add("manual ban");
+        if (evidenceCase.ProactiveDetections.Count > 0)
+            evidenceSources.Add("proactive statistical review");
         fields.Add(new
         {
             name = "Evidence source",
@@ -217,6 +219,29 @@ public sealed class DiscordWebhookClient : IDisposable
             });
         }
 
+
+        if (evidenceCase.ProactiveDetections.Count > 0)
+        {
+            var proactive = evidenceCase.ProactiveDetections.OrderByDescending(item => item.WhenUtc).First();
+            var strongest = proactive.Signals.OrderByDescending(item => item.Contribution).FirstOrDefault();
+            var lines = new List<string>
+            {
+                $"**{DiscordText(proactive.RiskLevel.ToString())} — {proactive.RiskScore}/100**",
+                "Automatically identified for human review; no punishment was issued."
+            };
+            if (strongest is not null)
+            {
+                lines.Add($"Strongest: **{DiscordText(strongest.Label)}**");
+                lines.Add($"Observed: **{FormatObserved(strongest)}** • percentile **{strongest.Percentile:0.###}** • **{strongest.ExpectedMultiple:0.##}x** median");
+                lines.Add($"Sample: **{strongest.SampleSize:N0}** • population: **{strongest.EligiblePopulation:N0}** • scope: `{DiscordInlineCode(strongest.BaselineScope)}`");
+            }
+            var otherSignals = proactive.Signals.OrderByDescending(item => item.Contribution).Skip(1).Take(2)
+                .Select(item => $"{DiscordText(item.Label)} ({item.Percentile:0.##}th percentile)").ToList();
+            if (otherSignals.Count > 0)
+                lines.Add("Other signals: " + string.Join(" • ", otherSignals));
+            fields.Add(new { name = "Proactive detection", value = Limit(string.Join("\n", lines), 1024), inline = false });
+        }
+
         if (reviewUrl is not null || profileUrl is not null)
         {
             var links = new List<string>();
@@ -229,6 +254,8 @@ public sealed class DiscordWebhookClient : IDisposable
 
         var title = evidenceCase.AntiCheat is not null
             ? $"Anti-cheat evidence • {DiscordText(evidenceCase.TargetName)}"
+            : evidenceCase.ProactiveDetections.Count > 0
+                ? $"Proactive review • {DiscordText(evidenceCase.TargetName)}"
             : $"Report evidence • {DiscordText(evidenceCase.TargetName)}";
         var embed = new Dictionary<string, object>
         {
@@ -276,6 +303,8 @@ public sealed class DiscordWebhookClient : IDisposable
             return "📋 **New metadata-only evidence is ready for review**";
         if (evidenceCase.AntiCheat is not null)
             return "🛡️ **New anti-cheat evidence is ready for review**";
+        if (evidenceCase.ProactiveDetections.Count > 0 && evidenceCase.Reports.Count == 0)
+            return "🔎 **Proactive statistical evidence is ready for human review**";
         return hasDemo
             ? "🎬 **New report evidence is ready for review**"
             : "⚠️ **Evidence captured, but no matching demo was found**";
@@ -376,7 +405,16 @@ public sealed class DiscordWebhookClient : IDisposable
         EvidenceReviewDecision.CheatingActionTaken or EvidenceReviewDecision.CheatingNoAction => 15548997,
         EvidenceReviewDecision.NotCheatingNoAction => 5763719,
         EvidenceReviewDecision.NeedsMoreReview or EvidenceReviewDecision.Inconclusive => 16776960,
-        _ => evidenceCase.AntiCheat is not null ? 15548997 : 5793266
+        _ => evidenceCase.AntiCheat is not null ? 15548997 :
+            evidenceCase.ProactiveDetections.MaxBy(item => item.RiskScore) is { } proactive
+                ? proactive.RiskScore >= 80 ? 15548997 : proactive.RiskScore >= 65 ? 16753920 : 16776960
+                : 5793266
+    };
+
+    private static string FormatObserved(ProactiveRiskSignal signal) => signal.Metric switch
+    {
+        ProactiveMetric.TrackedHeadRate or ProactiveMetric.KillingHeadRate => $"{signal.Observed * 100:0.0}%",
+        _ => signal.Observed.ToString("0.###")
     };
 
     private static bool IsDiscordId(string? value) =>

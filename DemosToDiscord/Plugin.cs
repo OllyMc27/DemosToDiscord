@@ -122,7 +122,8 @@ public sealed class Plugin : IPluginV2
         server.Map?.Name ?? string.Empty,
         server.Gametype ?? string.Empty,
         DateTime.UtcNow,
-        reason);
+        reason,
+        server.MatchStartTime);
 
     private static void NormalizeConfiguration(DemosToDiscordConfig config)
     {
