@@ -11,7 +11,7 @@
 - [[Admin commands|Admin-Commands]]
 - [[Privacy & data|Privacy-and-Data]]
 - [[Troubleshooting]]
-- [[Screenshots]]
+- [[Product tour|Screenshots]]
 
 ---
 

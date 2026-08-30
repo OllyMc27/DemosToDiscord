@@ -57,6 +57,8 @@ A message can include:
 - reports or anti-cheat detection;
 - direct case and player-profile links.
 
+![Discord evidence message with original demo, JSON metadata and case links](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-evidence-ready.png)
+
 ## Attachments
 
 T6 evidence normally includes:
@@ -85,6 +87,8 @@ The embed title and **Review evidence case** link open the case. **Open player p
 ## Message updates
 
 When a case is assigned or reviewed, DemosToDiscord edits the original message rather than sending a duplicate. Existing demo/JSON attachments remain attached.
+
+![Completed review reflected in the original Discord evidence message](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-review-completed.png)
 
 ## CDN download links
 

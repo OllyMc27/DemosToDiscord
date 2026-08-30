@@ -4,6 +4,8 @@ DemosToDiscord is an IW4MAdmin plugin that turns player reports and automated an
 
 This Wiki covers DemosToDiscord 2.3.x.
 
+![DemosToDiscord evidence queue](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-evidence-queue.png)
+
 ## Start here
 
 | Guide | What it covers |
@@ -18,7 +20,7 @@ This Wiki covers DemosToDiscord 2.3.x.
 | [Admin Commands](Admin-Commands) | Every in-game command and required permission. |
 | [Privacy and Data](Privacy-and-Data) | What is stored, what is not stored and recommended protections. |
 | [[Troubleshooting]] | Common startup, demo, Discord and webfront problems. |
-| [[Screenshots]] | Exact screenshots required for the README and Wiki. |
+| [Product Tour](Screenshots) | A visual tour of the evidence workflow. |
 
 ## At a glance
 

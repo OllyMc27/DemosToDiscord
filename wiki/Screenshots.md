@@ -1,69 +1,41 @@
-# Screenshots
+# Product Tour
 
-These screenshots are intended for the repository README and can also illustrate the Wiki pages.
+These publication screenshots show the complete DemosToDiscord workflow. Player, reporter and case identifiers have been anonymised; loopback server endpoints remain visible because they do not identify a public host.
 
-Capture at 1600–1920 pixels wide using a consistent dark theme. Keep text readable after GitHub scales the image.
+## Evidence queue
 
-## 1. Evidence queue
+Search, filter and review uploaded and metadata-only evidence from one IW4MAdmin dashboard.
 
-Filename:
+![Evidence queue with search, filters and mixed evidence states](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-evidence-queue.png)
 
-```text
-docs/images/webfront-evidence-queue.png
-```
+## Structured case review
 
-Show:
+Bring the demo, metadata, reports, decision, notes and native IW4MAdmin player actions together.
 
-- the **Demo Evidence** sidebar item;
-- overview counters and queue tabs;
-- search/filter controls;
-- at least two case rows;
-- ideally one uploaded case and one metadata-only/missing-demo case.
+![Structured evidence case review](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-case-review.png)
 
-## 2. Case review
+## Timeline and metrics
 
-Filename:
+Use report offsets to jump to the relevant moment, with player and anti-cheat metrics alongside the timeline.
 
-```text
-docs/images/webfront-case-review.png
-```
+![Match timeline, reports and anti-cheat metrics](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-timeline-metrics.png)
 
-Show:
+## Metadata-only evidence
 
-- case/player header;
-- status and review banner;
-- review summary;
-- working demo download;
-- right-hand player/evidence actions.
+T4, IW5 and T5 Zombies reports remain assignable and reviewable even though no demo can be recorded.
 
-## 3. Timeline and metrics
+![Metadata-only evidence case](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-metadata-only.png)
 
-Filename:
+## Evidence delivered to Discord
 
-```text
-docs/images/webfront-timeline-metrics.png
-```
+The original demo and T6 JSON metadata arrive with match context, report offsets and direct webfront links.
 
-Show the match timeline and metric cards together. Include player join, report and leave rows with visible `into match` offsets.
+![Discord evidence ready for review](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-evidence-ready.png)
 
-## 4. Metadata-only case
+## Review lifecycle
 
-Filename:
+Assignment and review changes update the original Discord message while its evidence remains attached.
 
-```text
-docs/images/webfront-metadata-only.png
-```
+![Completed review reflected in Discord](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-review-completed.png)
 
-Use a T4, IW5 or T5 Zombies report. Keep **Demo unsupported**, reports and review controls visible to show the case remains actionable.
-
-## Privacy checklist
-
-Before committing:
-
-- hide webhook URLs completely;
-- blur public server IPs if appropriate;
-- anonymise player GUIDs/network IDs if not needed;
-- anonymise reporter names if not needed;
-- avoid exposing browser sessions or Discord administration controls.
-
-Keep the same example player/case across screenshots where possible so they read as one workflow.
+Continue with [[Webfront Guide|Webfront-Guide]], [[Discord Integration|Discord-Integration]] or [[Evidence Workflow|Evidence-Workflow]].

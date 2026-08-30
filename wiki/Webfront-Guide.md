@@ -15,6 +15,8 @@ The overview provides:
 
 Cases remain visible when demos are unsupported or missing.
 
+![Evidence queue with search, filters and mixed evidence states](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-evidence-queue.png)
+
 ## Case header
 
 The case header shows:
@@ -27,6 +29,8 @@ The case header shows:
 - evidence source and confidence.
 
 The profile link opens IW4MAdmin's normal client profile.
+
+![Structured evidence case review](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-case-review.png)
 
 ## Demo evidence
 
@@ -55,6 +59,8 @@ The page can show aggregate kills, deaths, K/D, performance, score per minute, p
 
 Automated-ban cases can also show case-specific anti-cheat snapshots. Metrics provide context, not a verdict; always review the available demo and surrounding evidence.
 
+![Match timeline, reports and player anti-cheat metrics](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-timeline-metrics.png)
+
 ## Player actions
 
 The right-hand panel reuses IW4MAdmin's native:
@@ -77,6 +83,12 @@ Moderators can:
 - use quick cheating/not-cheating decisions;
 - mark a case for more review;
 - clear the reports attached to the case.
+
+## Metadata-only cases
+
+T4, IW5, T5 Zombies and explicitly unsupported servers retain the same review controls even when no demo can be recorded. The case explains the capability limitation while preserving reports, metrics, assignment, decisions and activity.
+
+![Metadata-only evidence case with complete review controls](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-metadata-only.png)
 
 ## Other evidence and activity
 
