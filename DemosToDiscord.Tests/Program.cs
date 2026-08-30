@@ -285,6 +285,34 @@ internal static class Program
         var unchanged = await baselines.EvaluateAsync(target, capability, CancellationToken.None);
         True(!unchanged.HasNewData, "unchanged data is not evaluated twice");
 
+        await using (var connection = new SqliteConnection(fixture.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO EFClientKills(
+                    KillId, AttackerId, ServerId, HitLoc, IsKill, WeaponReference,
+                    "When", Fraction, VisibilityPercentage, Map, Active)
+                VALUES(50000, 42, 100, 2, 0, 'scar_mp_reflex',
+                       '2026-08-30T18:05:00.0000000Z', 0, 0, 0, 1);
+                UPDATE EFClientStatistics SET UpdatedAt='2026-08-30T18:05:00.0000000Z'
+                    WHERE ClientId=42 AND ServerId=100;
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+        var incremental = await baselines.EvaluateAsync(target, capability, CancellationToken.None);
+        True(incremental.HasNewData, "a source event beyond the high-water mark is evaluated");
+        Equal(50000L, incremental.LastKillId, "incremental refresh advances the player high-water mark");
+        Equal(401, incremental.Observations[0].SampleSize, "incremental source event is added once");
+        Equal(161, incremental.Observations[0].PositiveEventCount, "incremental head hit is added once");
+        var incrementalAssessment = new RiskScorer(config).Score(incremental.Observations);
+        await baselines.RecordEvaluationAsync(target, incremental, incrementalAssessment, CancellationToken.None);
+        var incrementalDuplicate = await baselines.EvaluateAsync(target, capability, CancellationToken.None);
+        True(!incrementalDuplicate.HasNewData, "the incremental source event is not reprocessed");
+        var incrementalStatus = await baselines.GetStatusAsync(CancellationToken.None);
+        Equal(50000L, incrementalStatus.HighWaterKillId, "global baseline high-water is persisted");
+        Equal(status.SourceEvents + 1, incrementalStatus.SourceEvents, "source event count advances exactly once");
+
         var t5Target = target with { ServerId = "127.0.0.1:28960", LegacyServerId = 200, Game = "T5" };
         var t5Capability = new DetectionCapabilityService(config).Resolve("T5", "mp_nuked", "tdm");
         var t5Evaluation = await baselines.EvaluateAsync(t5Target, t5Capability, CancellationToken.None);
