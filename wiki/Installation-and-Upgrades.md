@@ -22,7 +22,7 @@
 The startup console should include a line similar to:
 
 ```text
-[DemosToDiscord] by OllyMc27 loaded. Version: 2.3.x
+[DemosToDiscord] by OllyMc27 loaded. Version: 3.0.0
 ```
 
 ## First-run checks
@@ -34,6 +34,8 @@ The startup console should include a line similar to:
 5. Wait for the match to end and the demo to finish writing.
 6. Confirm the original `.demo` and `.json` appear in Discord.
 7. Open the case and test the Discord download link.
+
+For proactive review, first back up `Database.db`, set `ProactiveDetection.Enabled` to `true`, restart, then run `!dtdbaseline`. The first baseline build scans the existing T6/IW5 tracked-hit history and can take longer than later incremental refreshes.
 
 ## Demo-folder permissions
 
@@ -53,7 +55,8 @@ Use the actual account and location on your server.
 Before a major upgrade, back up:
 
 - `Configuration/DemosToDiscord.json`;
-- `Configuration/DemosToDiscordCases.json`.
+- IW4MAdmin's `Database.db` (plus its `-wal`/`-shm` files when present, after stopping IW4MAdmin);
+- `Configuration/DemosToDiscordCases.json` for the first database-backed upgrade.
 
 Then:
 
@@ -63,7 +66,7 @@ Then:
 4. Start IW4MAdmin and verify the version in the loaded list.
 5. Compare the release notes and example configuration for new settings.
 
-Do not rename the DLL with a version suffix. Do not delete the case state file unless you intentionally want to discard the retained review queue and history.
+Do not rename the DLL with a version suffix. On the first database-backed start, the plugin creates its tables and imports missing legacy JSON cases transactionally. It preserves the JSON source, but all subsequent case changes are written to `Database.db`. Version 3 adds migration 2 for baseline and evaluation state; it does not alter IW4MAdmin's own statistics tables.
 
 ## Public case links
 

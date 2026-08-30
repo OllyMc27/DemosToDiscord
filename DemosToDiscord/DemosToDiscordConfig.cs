@@ -31,6 +31,12 @@ public sealed class DemosToDiscordConfig
     public bool StoreReportReasons { get; set; } = true;
     public int CaseRetentionDays { get; set; } = 90;
     public int MaxStoredCases { get; set; } = 500;
+    public bool ImportLegacyStateFile { get; set; } = true;
+    public bool AddPlayerNotesOnReview { get; set; } = true;
+    public bool AddPlayerNotesOnAssignment { get; set; }
+    public bool AddPlayerNotesOnPenalty { get; set; } = true;
+    public ProactiveDetectionConfig ProactiveDetection { get; set; } = new();
+    // Used only for one-time import and emergency fallback; cases are stored in Database.db.
     public string StateFilePath { get; set; } = "Configuration/DemosToDiscordCases.json";
     public string TimeZone { get; set; } = EvidenceTime.DefaultTimeZoneId;
 
@@ -57,5 +63,26 @@ public sealed class DemosToDiscordServerOverride
     public bool? SendMetadataOnlyCasesToDiscord { get; set; }
     public string? ReportRoleId { get; set; }
     public string? AntiCheatRoleId { get; set; }
+    public bool? EnableProactiveDetection { get; set; }
+}
+
+public sealed class ProactiveDetectionConfig
+{
+    public bool Enabled { get; set; }
+    public bool EvaluateOnMatchEnd { get; set; } = true;
+    public bool EvaluateOnDisconnect { get; set; } = true;
+    public double MinimumCaseRiskScore { get; set; } = 50;
+    public double MinimumSignalPercentile { get; set; } = 0.975;
+    public int MinimumTrackedHits { get; set; } = 100;
+    public int MinimumPositiveEvents { get; set; } = 12;
+    public int MinimumPopulationSize { get; set; } = 30;
+    public int FullConfidenceTrackedHits { get; set; } = 300;
+    public int FullConfidencePopulationSize { get; set; } = 100;
+    public int RepeatHistoryDays { get; set; } = 30;
+    public int EvaluationDelaySeconds { get; set; } = 15;
+    public int BaselineRefreshMinutes { get; set; } = 5;
+    public int FullBaselineRebuildHours { get; set; } = 168;
+    public int MaximumIncrementalEvents { get; set; } = 250000;
+    public int MaxConcurrentEvaluations { get; set; } = 1;
 }
 

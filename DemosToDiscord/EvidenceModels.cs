@@ -4,7 +4,8 @@ public enum EvidenceTriggerType
 {
     Report,
     AutomatedBan,
-    ManualBan
+    ManualBan,
+    ProactiveDetection
 }
 
 public enum EvidenceCaseStatus
@@ -36,7 +37,10 @@ public enum EvidenceHistoryAction
     Unassigned,
     ReviewChanged,
     ReportsCleared,
-    DiscordSynced
+    DiscordSynced,
+    ProactiveDetectionAdded,
+    PlayerNoteAdded,
+    PenaltyLinked
 }
 
 public enum EvidenceReviewDecision
@@ -67,6 +71,13 @@ public sealed class EvidenceCase
     public List<ReportEvidence> Reports { get; set; } = [];
     public AntiCheatEvidence? AntiCheat { get; set; }
     public bool ManualBanObserved { get; set; }
+    public bool ProactiveDetectionObserved { get; set; }
+    public double? RiskScore { get; set; }
+    public string? RiskLevel { get; set; }
+    public string? DetectionConfidence { get; set; }
+    public string? StrongestSignal { get; set; }
+    public DateTime? LastProactiveDetectionAtUtc { get; set; }
+    public List<DetectionSignal> DetectionSignals { get; set; } = [];
     public string? DemoFileName { get; set; }
     public long? DemoFileSize { get; set; }
     public DateTime? DemoStartedAtUtc { get; set; }
@@ -105,6 +116,8 @@ public sealed class EvidenceCase
                 triggers.Add(EvidenceTriggerType.AutomatedBan);
             if (ManualBanObserved)
                 triggers.Add(EvidenceTriggerType.ManualBan);
+            if (ProactiveDetectionObserved)
+                triggers.Add(EvidenceTriggerType.ProactiveDetection);
             return triggers;
         }
     }
@@ -120,6 +133,28 @@ public sealed class EvidenceHistoryEntry
     public EvidenceReviewDecision? Decision { get; set; }
     public string? Notes { get; set; }
     public int ReportsCleared { get; set; }
+    public int? PenaltyId { get; set; }
+    public int? PlayerNoteMetaId { get; set; }
+}
+
+public sealed class DetectionSignal
+{
+    public long SignalId { get; set; }
+    public DateTime ObservedAtUtc { get; set; }
+    public string MetricKey { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string Scope { get; set; } = string.Empty;
+    public string? Weapon { get; set; }
+    public string? Map { get; set; }
+    public double ObservedValue { get; set; }
+    public double? ExpectedValue { get; set; }
+    public double? Percentile { get; set; }
+    public double? ExpectedMultiple { get; set; }
+    public int SampleSize { get; set; }
+    public int PopulationSize { get; set; }
+    public double ConfidenceWeight { get; set; }
+    public double RiskContribution { get; set; }
+    public string Explanation { get; set; } = string.Empty;
 }
 
 public sealed class ReportEvidence

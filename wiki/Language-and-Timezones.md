@@ -2,7 +2,7 @@
 
 ## Display language
 
-DemosToDiscord 2.3.x does **not** currently have a `Language` configuration option.
+DemosToDiscord 3.0.x does **not** currently have a `Language` configuration option.
 
 - Plugin-owned webfront labels are English.
 - Plugin-owned Discord messages and embeds are English.

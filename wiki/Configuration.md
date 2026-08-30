@@ -44,7 +44,7 @@ The paths must belong to the Windows account that records the demos. A service a
 |---|---|---|---|
 | `UploadOnReports` | Boolean | `true` | Creates or updates a case for a player report. |
 | `UploadOnAutomatedBans` | Boolean | `true` | Creates or updates a case for recognised automated anti-cheat bans. |
-| `UploadOnManualBans` | Boolean | `false` | Observes manual bans. A ban only links to a recent case; it does not create an unrelated case. |
+| `UploadOnManualBans` | Boolean | `false` | Retained for configuration compatibility. Recent manual bans are always offered to an existing case for audit linking; they never create an unrelated case. |
 | `AutomatedBanGames` | String array | `[ "T6" ]` | Game codes allowed to trigger automated-ban evidence. |
 | `SupportedDemoGames` | String array | `[ "T5", "T6" ]` | Games expected to produce downloadable demos. Others remain metadata-only. |
 | `T5ZombieMapPrefixes` | String array | `[ "zombie_" ]` | Map prefixes identifying T5 Zombies as demo-unsupported. |
@@ -71,8 +71,35 @@ The paths must belong to the Windows account that records the demos. A service a
 | `StoreReportReasons` | Boolean | `true` | `false` prevents the original report text being retained. |
 | `CaseRetentionDays` | Integer | `90` | Cases older than this are pruned. Positive value. |
 | `MaxStoredCases` | Integer | `500` | Maximum retained cases; oldest are removed first. Positive value. |
-| `StateFilePath` | String | `Configuration/DemosToDiscordCases.json` | Absolute path or path relative to IW4MAdmin. |
+| `ImportLegacyStateFile` | Boolean | `true` | Imports missing cases from the legacy JSON file into `Database.db` once, preserving the source file. |
+| `StateFilePath` | String | `Configuration/DemosToDiscordCases.json` | Legacy import and emergency-fallback path; it is no longer the normal case store. |
+| `AddPlayerNotesOnReview` | Boolean | `true` | Appends meaningful review outcomes to IW4MAdmin's native player note. |
+| `AddPlayerNotesOnAssignment` | Boolean | `false` | Also records case assignment in the native player note; disabled by default to avoid noise. |
+| `AddPlayerNotesOnPenalty` | Boolean | `true` | Appends a linked temp/permanent-ban outcome and reason to the native player note. |
 | `TimeZone` | String | `Europe/London` | IANA timezone used for webfront and Discord. See [Language and Timezones](Language-and-Timezones). |
+
+### Proactive detection
+
+`ProactiveDetection.Enabled` defaults to `false` so a major upgrade cannot unexpectedly create cases. When enabled, version 3 refreshes its compact baseline in the background and evaluates changed player data after match end or disconnect. It creates human-review cases only and never punishes automatically.
+
+| Setting | Default | Behaviour |
+|---|---:|---|
+| `Enabled` | `false` | Enables live baseline refresh and proactive review-case creation. |
+| `EvaluateOnMatchEnd` | `true` | Queues connected eligible players when a match ends. |
+| `EvaluateOnDisconnect` | `true` | Queues an eligible player when IW4MAdmin disposes their session state. |
+| `MinimumCaseRiskScore` | `50` | Minimum explainable risk required to create a review case. |
+| `MinimumSignalPercentile` | `0.975` | Lowest population percentile allowed to contribute risk. |
+| `MinimumTrackedHits` | `100` | Rejects tiny tracked-hit samples. |
+| `MinimumPositiveEvents` | `12` | Prevents cases such as two head hits from three events. |
+| `MinimumPopulationSize` | `30` | Rejects unstable comparison populations. |
+| `FullConfidenceTrackedHits` | `300` | Sample size that receives full signal weight. |
+| `FullConfidencePopulationSize` | `100` | Population size that receives full signal weight. |
+| `RepeatHistoryDays` | `30` | Window for bounded repeated-outlier weighting. |
+| `EvaluationDelaySeconds` | `15` | Delay after match/session events so IW4MAdmin statistics can persist. |
+| `BaselineRefreshMinutes` | `5` | Minimum interval between incremental source refreshes. |
+| `FullBaselineRebuildHours` | `168` | Periodic full rebuild interval; the default is weekly. |
+| `MaximumIncrementalEvents` | `250000` | Maximum source-event batch processed in one incremental refresh. |
+| `MaxConcurrentEvaluations` | `1` | Background evaluation workers; keep low on busy SQLite installations. |
 
 ### Discord delivery
 
@@ -94,11 +121,12 @@ The paths must belong to the Windows account that records the demos. A service a
 | `Webhook` | String | Highest-priority webhook for this server. |
 | `UploadOnReports` | Nullable Boolean | Overrides report collection. |
 | `UploadOnAutomatedBans` | Nullable Boolean | Overrides automated-ban collection. |
-| `UploadOnManualBans` | Nullable Boolean | Overrides manual-ban observation. |
+| `UploadOnManualBans` | Nullable Boolean | Retained for compatibility; recent-case penalty linking is always attempted. |
 | `SupportsDemos` | Nullable Boolean | Explicitly enables/disables demo searching. |
 | `SendMetadataOnlyCasesToDiscord` | Nullable Boolean | Overrides metadata-only Discord delivery. |
 | `ReportRoleId` | String | Overrides the report role ID. |
 | `AntiCheatRoleId` | String | Overrides the anti-cheat role ID. |
+| `EnableProactiveDetection` | Nullable Boolean | Enables/disables proactive evaluation for the server; use `false` for T5 Zombies. |
 
 Server override selection: exact endpoint → legacy server ID → `"*"` fallback → global settings.
 
@@ -131,7 +159,29 @@ Webhook selection: server override → `GameWebhooks` → default `Webhook`.
   "StoreReportReasons": true,
   "CaseRetentionDays": 90,
   "MaxStoredCases": 500,
+  "ImportLegacyStateFile": true,
   "StateFilePath": "Configuration/DemosToDiscordCases.json",
+  "AddPlayerNotesOnReview": true,
+  "AddPlayerNotesOnAssignment": false,
+  "AddPlayerNotesOnPenalty": true,
+  "ProactiveDetection": {
+    "Enabled": false,
+    "EvaluateOnMatchEnd": true,
+    "EvaluateOnDisconnect": true,
+    "MinimumCaseRiskScore": 50,
+    "MinimumSignalPercentile": 0.975,
+    "MinimumTrackedHits": 100,
+    "MinimumPositiveEvents": 12,
+    "MinimumPopulationSize": 30,
+    "FullConfidenceTrackedHits": 300,
+    "FullConfidencePopulationSize": 100,
+    "RepeatHistoryDays": 30,
+    "EvaluationDelaySeconds": 15,
+    "BaselineRefreshMinutes": 5,
+    "FullBaselineRebuildHours": 168,
+    "MaximumIncrementalEvents": 250000,
+    "MaxConcurrentEvaluations": 1
+  },
   "TimeZone": "Europe/London",
   "SendMetadataOnlyCasesToDiscord": true,
   "ReportRoleId": "",
@@ -147,6 +197,7 @@ Webhook selection: server override → `GameWebhooks` → default `Webhook`.
       "DemoPath": "D:\\Plutonium\\storage\\t6\\demos",
       "Webhook": "https://discord.com/api/webhooks/OPTIONAL_SERVER_WEBHOOK",
       "SupportsDemos": true,
+      "EnableProactiveDetection": true,
       "SendMetadataOnlyCasesToDiscord": true,
       "ReportRoleId": "",
       "AntiCheatRoleId": ""

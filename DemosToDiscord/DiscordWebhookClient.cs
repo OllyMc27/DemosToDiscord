@@ -162,6 +162,8 @@ public sealed class DiscordWebhookClient : IDisposable
             evidenceSources.Add("automated anti-cheat ban");
         if (evidenceCase.ManualBanObserved)
             evidenceSources.Add("manual ban");
+        if (evidenceCase.ProactiveDetectionObserved)
+            evidenceSources.Add("proactive statistical detection");
         fields.Add(new
         {
             name = "Evidence source",
@@ -217,6 +219,20 @@ public sealed class DiscordWebhookClient : IDisposable
             });
         }
 
+        if (evidenceCase.ProactiveDetectionObserved)
+        {
+            var strongest = evidenceCase.DetectionSignals.OrderByDescending(item => item.RiskContribution).FirstOrDefault();
+            var detail = strongest is null
+                ? evidenceCase.StrongestSignal ?? "Signal details unavailable"
+                : $"{strongest.DisplayName}\n{strongest.Percentile:0.###}th percentile • {strongest.ExpectedMultiple:0.##}x expected\n{strongest.SampleSize:N0} events • population {strongest.PopulationSize:N0}";
+            fields.Add(new
+            {
+                name = $"Proactive risk • {evidenceCase.RiskScore:0}/100 {evidenceCase.RiskLevel}",
+                value = Limit(DiscordText(detail), 1024),
+                inline = false
+            });
+        }
+
         if (reviewUrl is not null || profileUrl is not null)
         {
             var links = new List<string>();
@@ -227,9 +243,11 @@ public sealed class DiscordWebhookClient : IDisposable
             fields.Add(new { name = "Admin links", value = string.Join("  •  ", links), inline = false });
         }
 
-        var title = evidenceCase.AntiCheat is not null
-            ? $"Anti-cheat evidence • {DiscordText(evidenceCase.TargetName)}"
-            : $"Report evidence • {DiscordText(evidenceCase.TargetName)}";
+        var title = evidenceCase.ProactiveDetectionObserved
+            ? $"Proactive review • {DiscordText(evidenceCase.TargetName)}"
+            : evidenceCase.AntiCheat is not null
+                ? $"Anti-cheat evidence • {DiscordText(evidenceCase.TargetName)}"
+                : $"Report evidence • {DiscordText(evidenceCase.TargetName)}";
         var embed = new Dictionary<string, object>
         {
             ["title"] = Limit(title, 256),
@@ -276,6 +294,8 @@ public sealed class DiscordWebhookClient : IDisposable
             return "📋 **New metadata-only evidence is ready for review**";
         if (evidenceCase.AntiCheat is not null)
             return "🛡️ **New anti-cheat evidence is ready for review**";
+        if (evidenceCase.ProactiveDetectionObserved)
+            return "📊 **A proactive statistical review case is ready for human assessment**";
         return hasDemo
             ? "🎬 **New report evidence is ready for review**"
             : "⚠️ **Evidence captured, but no matching demo was found**";
@@ -361,6 +381,8 @@ public sealed class DiscordWebhookClient : IDisposable
             lines.Add($"➡️ Player joined — **{EvidenceTime.Format(evidenceCase.PlayerJoinedAtUtc)} {EvidenceTime.Label}** ({EvidenceTime.MatchOffset(evidenceCase.PlayerJoinedAtUtc.Value, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
         foreach (var report in evidenceCase.Reports.OrderBy(item => item.WhenUtc).Take(5))
             lines.Add($"🚩 Reported — **{EvidenceTime.Format(report.WhenUtc)} {EvidenceTime.Label}** ({EvidenceTime.MatchOffset(report.WhenUtc, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
+        if (evidenceCase.LastProactiveDetectionAtUtc is not null)
+            lines.Add($"📊 Proactive detection — **{EvidenceTime.Format(evidenceCase.LastProactiveDetectionAtUtc)} {EvidenceTime.Label}** ({EvidenceTime.MatchOffset(evidenceCase.LastProactiveDetectionAtUtc.Value, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
         if (evidenceCase.PlayerLeftAtUtc is not null)
             lines.Add($"⬅️ Player left — **{EvidenceTime.Format(evidenceCase.PlayerLeftAtUtc)} {EvidenceTime.Label}** ({EvidenceTime.MatchOffset(evidenceCase.PlayerLeftAtUtc.Value, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
         return Limit(lines.Count == 0 ? "Timeline data is not available for this case." : string.Join("\n", lines), 1024);
@@ -376,7 +398,7 @@ public sealed class DiscordWebhookClient : IDisposable
         EvidenceReviewDecision.CheatingActionTaken or EvidenceReviewDecision.CheatingNoAction => 15548997,
         EvidenceReviewDecision.NotCheatingNoAction => 5763719,
         EvidenceReviewDecision.NeedsMoreReview or EvidenceReviewDecision.Inconclusive => 16776960,
-        _ => evidenceCase.AntiCheat is not null ? 15548997 : 5793266
+        _ => evidenceCase.AntiCheat is not null ? 15548997 : evidenceCase.ProactiveDetectionObserved ? 16753920 : 5793266
     };
 
     private static bool IsDiscordId(string? value) =>

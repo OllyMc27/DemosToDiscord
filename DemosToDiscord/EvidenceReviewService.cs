@@ -15,6 +15,7 @@ public sealed class EvidenceReviewService(
     DemosToDiscordConfig config,
     EvidenceCaseStore store,
     DemoUploadService uploadService,
+    PlayerNoteService playerNotes,
     ILogger<EvidenceReviewService> logger)
 {
     public async Task<string> ExecuteAsync(
@@ -42,13 +43,24 @@ public sealed class EvidenceReviewService(
         var originName = origin.CurrentAlias?.Name.StripColors() ?? $"Client #{origin.ClientId}";
         if (operation?.Equals("Assign", StringComparison.OrdinalIgnoreCase) == true)
         {
+            var noteId = config.AddPlayerNotesOnAssignment
+                ? await playerNotes.AppendCaseActionAsync(
+                    evidenceCase.TargetClientId,
+                    origin.ClientId,
+                    originName,
+                    caseId,
+                    $"Assigned to {originName}",
+                    token)
+                : null;
             await store.UpdateAsync(caseId, item =>
             {
                 item.AssignedToClientId = origin.ClientId;
                 item.AssignedToName = originName;
                 item.AssignedAtUtc = DateTime.UtcNow;
-                item.History.Add(History(EvidenceHistoryAction.Assigned, origin.ClientId, originName,
-                    $"Case assigned to {originName}."));
+                var history = History(EvidenceHistoryAction.Assigned, origin.ClientId, originName,
+                    $"Case assigned to {originName}.");
+                history.PlayerNoteMetaId = noteId;
+                item.History.Add(history);
             }, token);
             await uploadService.UpdateCaseDiscordAsync(caseId, token);
             return "Case assigned to you.";
@@ -92,6 +104,15 @@ public sealed class EvidenceReviewService(
         var clearedCount = clearReports
             ? await ClearReportsAsync(manager, evidenceCase, origin.ClientId, originName, token)
             : 0;
+        var playerNoteId = config.AddPlayerNotesOnReview
+            ? await playerNotes.AppendCaseActionAsync(
+                evidenceCase.TargetClientId,
+                origin.ClientId,
+                originName,
+                caseId,
+                PlayerNoteAction(decision, notes),
+                token)
+            : null;
         await store.UpdateAsync(caseId, item =>
         {
             item.ReviewDecision = decision;
@@ -108,7 +129,8 @@ public sealed class EvidenceReviewService(
                 Summary = $"Review decision changed to {DecisionLabel(decision)}.",
                 Decision = decision,
                 Notes = notes,
-                ReportsCleared = clearedCount
+                ReportsCleared = clearedCount,
+                PlayerNoteMetaId = playerNoteId
             });
         }, token);
         await uploadService.UpdateCaseDiscordAsync(caseId, token);
@@ -207,6 +229,27 @@ public sealed class EvidenceReviewService(
         EvidenceReviewDecision.Inconclusive => "inconclusive",
         _ => "unreviewed"
     };
+
+    private static string PlayerNoteAction(EvidenceReviewDecision decision, string? notes)
+    {
+        var action = decision switch
+        {
+            EvidenceReviewDecision.CheatingActionTaken => "Cheating confirmed — action taken",
+            EvidenceReviewDecision.CheatingNoAction => "Cheating confirmed — no action taken",
+            EvidenceReviewDecision.NotCheatingNoAction => "Cleared — no cheat confirmed",
+            EvidenceReviewDecision.NeedsMoreReview => "Evidence reviewed — further review required",
+            EvidenceReviewDecision.Inconclusive => "Evidence reviewed — inconclusive",
+            _ => "Evidence reviewed"
+        };
+        if (string.IsNullOrWhiteSpace(notes))
+            return action;
+        var summary = string.Join(" ", notes
+            .Replace("\r", string.Empty, StringComparison.Ordinal)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        if (summary.Length > 180)
+            summary = summary[..177] + "...";
+        return $"{action} — {summary}";
+    }
 
     private static EvidenceHistoryEntry History(
         EvidenceHistoryAction action,

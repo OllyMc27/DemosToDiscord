@@ -4,8 +4,15 @@ public static class EvidenceAssessment
 {
     public static EvidenceConfidence Confidence(EvidenceCase item)
     {
+        if (item.ProactiveDetectionObserved && (item.AntiCheat is not null || item.Reports.Count > 0))
+            return new EvidenceConfidence("Corroborated", "Proactive signal plus independent evidence", 5);
         if (item.AntiCheat is not null && item.Reports.Count > 0)
             return new EvidenceConfidence("Corroborated", "Report and automated detection", 5);
+        if (item.ProactiveDetectionObserved)
+            return new EvidenceConfidence(
+                item.DetectionConfidence ?? "Statistical review",
+                $"Population risk {item.RiskScore:0.0}/100; human review required",
+                3);
         if (item.AntiCheat is not null)
             return new EvidenceConfidence("Automated detection", "Anti-cheat evidence captured", 4);
         if (item.Reports.Count > 1)

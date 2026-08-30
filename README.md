@@ -8,6 +8,8 @@
 
 DemosToDiscord connects [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin), Plutonium demos and Discord. It finds the right match recording, groups the surrounding evidence into one case and gives moderators a purpose-built review workflow inside the IW4MAdmin webfront.
 
+Version 3 stores the retained evidence workflow in IW4MAdmin's `Database.db` and adds explainable proactive human review. It evaluates persisted statistics after matches and disconnects, creates review cases only when conservative population safeguards pass, and never punishes automatically.
+
 [Download the latest release](https://github.com/OllyMc27/DemosToDiscord/releases/latest) · [Installation guide](https://github.com/OllyMc27/DemosToDiscord/wiki/Installation-and-Upgrades) · [Complete Wiki](https://github.com/OllyMc27/DemosToDiscord/wiki)
 
 ![DemosToDiscord evidence queue](docs/images/webfront-evidence-queue.png)
@@ -24,6 +26,16 @@ DemosToDiscord connects [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin), Plut
 ![Structured evidence case review](docs/images/webfront-case-review.png)
 
 Each case brings together the original demo, T6 JSON metadata, server and match context, reports, review notes and IW4MAdmin's native player actions. Moderators can assign work, ban, kick, flag, add notes, clear only the attached reports and record a final outcome without leaving the page.
+
+## Proactive review, with the maths shown
+
+- T6 and IW5 compare weapon-specific tracked-hit head rates against eligible players using the same normalized base weapon.
+- T4 and T5 multiplayer use a clearly labelled cumulative head-rate fallback; T5 Zombies is excluded.
+- Tiny samples, small populations and unchanged statistics cannot create repeat cases.
+- Every signal records its percentile, expected value, multiple, sample size, population and score contribution.
+- A match-end or disconnect evaluation can create or merge a normal evidence case and attempt the existing demo workflow. It cannot warn, kick or ban.
+
+Set `ProactiveDetection.Enabled` to `true` after backing up `Database.db`. Use `!dtdbaseline` to check cache health and **Admin → Proactive Review** to work the resulting queue.
 
 ## Jump straight to the useful moment
 

@@ -10,6 +10,7 @@ namespace DemosToDiscord;
 public sealed class DemosToDiscordWebfront : IDisposable
 {
     public const string InteractionKey = "Webfront::Nav::Admin::DemosToDiscord";
+    public const string ProactiveInteractionKey = "Webfront::Nav::Admin::DemosToDiscordProactive";
     public const string ReviewInteractionKey = "DemosToDiscord::ReviewCase";
     private const string WideStyles = """
         <style>
@@ -32,6 +33,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
     private readonly PlayerTimelineService _timeline;
     private readonly DiscordWebhookClient _discord;
     private readonly EvidenceReviewService _reviewService;
+    private readonly ProactiveBaselineService _baselines;
     private bool _disposed;
 
     public DemosToDiscordWebfront(
@@ -42,7 +44,8 @@ public sealed class DemosToDiscordWebfront : IDisposable
         AntiCheatMetricsService metrics,
         PlayerTimelineService timeline,
         DiscordWebhookClient discord,
-        EvidenceReviewService reviewService)
+        EvidenceReviewService reviewService,
+        ProactiveBaselineService baselines)
     {
         _interactions = interactions;
         _configurationHandler = configurationHandler;
@@ -52,12 +55,14 @@ public sealed class DemosToDiscordWebfront : IDisposable
         _timeline = timeline;
         _discord = discord;
         _reviewService = reviewService;
+        _baselines = baselines;
         _configurationHandler.Updated += OnConfigurationUpdated;
     }
 
     public void Register()
     {
         _interactions.UnregisterInteraction(InteractionKey);
+        _interactions.UnregisterInteraction(ProactiveInteractionKey);
         _interactions.UnregisterInteraction(ReviewInteractionKey);
 
         if (_config.EnableWebfrontDashboard)
@@ -77,6 +82,32 @@ public sealed class DemosToDiscordWebfront : IDisposable
                     PermissionEntity = "Interaction",
                     PermissionAccess = "Read",
                     Action = (originId, _, _, meta, token) => RenderAsync(originId, meta, token)
+                };
+                return Task.FromResult<IInteractionData>(interaction);
+            });
+            _interactions.RegisterInteraction(ProactiveInteractionKey, (_, _, _) =>
+            {
+                var interaction = new InteractionData
+                {
+                    Enabled = true,
+                    Name = "Proactive Review",
+                    Description = "Review statistically unusual players surfaced for human assessment",
+                    DisplayMeta = "ph-shield-warning",
+                    InteractionId = ProactiveInteractionKey,
+                    MinimumPermission = _config.WebfrontMinimumPermission,
+                    InteractionType = InteractionType.TemplateContent,
+                    Source = "DemosToDiscord",
+                    PermissionEntity = "Interaction",
+                    PermissionAccess = "Read",
+                    Action = (originId, _, _, meta, token) =>
+                    {
+                        var boardMeta = new Dictionary<string, string>(meta, StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["source"] = "proactive",
+                            ["board"] = "proactive"
+                        };
+                        return RenderAsync(originId, boardMeta, token);
+                    }
                 };
                 return Task.FromResult<IInteractionData>(interaction);
             });
@@ -107,10 +138,26 @@ public sealed class DemosToDiscordWebfront : IDisposable
     {
         if (meta.TryGetValue("case", out var caseId) && !string.IsNullOrWhiteSpace(caseId))
             return await RenderCaseAsync(caseId, token);
-        return RenderDashboard(_service.GetSnapshot(), originId, meta);
+        ProactiveBaselineStatus? baseline = null;
+        if (Meta(meta, "board").Equals("proactive", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                baseline = await _baselines.GetStatusAsync(token);
+            }
+            catch
+            {
+                // The queue remains usable if baseline health cannot be loaded.
+            }
+        }
+        return RenderDashboard(_service.GetSnapshot(), originId, meta, baseline);
     }
 
-    private string RenderDashboard(EvidenceStoreSnapshot snapshot, int originId, IDictionary<string, string> meta)
+    private string RenderDashboard(
+        EvidenceStoreSnapshot snapshot,
+        int originId,
+        IDictionary<string, string> meta,
+        ProactiveBaselineStatus? baseline)
     {
         meta.TryGetValue("view", out var requestedView);
         var view = NormalizeView(requestedView);
@@ -121,28 +168,34 @@ public sealed class DemosToDiscordWebfront : IDisposable
         var followUp = snapshot.Cases.Count(item => item.ReviewDecision is
             EvidenceReviewDecision.NeedsMoreReview or EvidenceReviewDecision.Inconclusive);
         var cases = FilterCases(snapshot.Cases, view, originId, meta).Take(100).ToList();
+        var proactiveBoard = Meta(meta, "board").Equals("proactive", StringComparison.OrdinalIgnoreCase);
+        var title = proactiveBoard ? "Proactive review board" : "Evidence queue";
+        var description = proactiveBoard
+            ? "Statistical outliers awaiting human review; a high score is not an automatic cheat verdict."
+            : "Reports and automated detections grouped by player and match.";
         var builder = new StringBuilder(WideStyles);
         builder.Append("<div class=\"dtd-workspace space-y-5\">")
             .Append("<section class=\"overflow-hidden rounded-xl border border-line bg-surface shadow-sm\">")
-            .Append("<div class=\"flex flex-col gap-4 border-b border-line px-5 pt-5 pb-8 md:flex-row md:items-center md:justify-between md:px-6\"><div><h3 class=\"text-lg font-semibold text-foreground\">Evidence queue</h3><p class=\"mt-1 text-sm text-muted\">Reports and automated detections grouped by player and match.</p></div>")
-            .Append($"<a data-enhance-nav=\"false\" class=\"inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface-alt px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover\" href=\"{OverviewUrl(view)}\"><i class=\"ph ph-arrow-clockwise\"></i>Refresh</a></div>")
+            .Append($"<div class=\"flex flex-col gap-4 border-b border-line px-5 pt-5 pb-8 md:flex-row md:items-center md:justify-between md:px-6\"><div><h3 class=\"text-lg font-semibold text-foreground\">{Encode(title)}</h3><p class=\"mt-1 text-sm text-muted\">{Encode(description)}</p></div>")
+            .Append($"<a data-enhance-nav=\"false\" class=\"inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface-alt px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover\" href=\"{OverviewUrl(view, proactiveBoard)}\"><i class=\"ph ph-arrow-clockwise\"></i>Refresh</a></div>")
             .Append("<div class=\"grid grid-cols-2 border-b border-line md:grid-cols-4\">")
-            .Append(OverviewMetric("Awaiting", awaitingReview, "ph-hourglass", "text-amber-400", "awaiting", view))
-            .Append(OverviewMetric("Confirmed", confirmedCheating, "ph-shield-warning", "text-red-400", "cheating", view))
-            .Append(OverviewMetric("Cleared", cleared, "ph-check-circle", "text-emerald-400", "cleared", view))
-            .Append(OverviewMetric("Follow-up", followUp, "ph-magnifying-glass", "text-primary", "followup", view))
+            .Append(OverviewMetric("Awaiting", awaitingReview, "ph-hourglass", "text-amber-400", "awaiting", view, proactiveBoard))
+            .Append(OverviewMetric("Confirmed", confirmedCheating, "ph-shield-warning", "text-red-400", "cheating", view, proactiveBoard))
+            .Append(OverviewMetric("Cleared", cleared, "ph-check-circle", "text-emerald-400", "cleared", view, proactiveBoard))
+            .Append(OverviewMetric("Follow-up", followUp, "ph-magnifying-glass", "text-primary", "followup", view, proactiveBoard))
             .Append("</div>")
             .Append("<nav class=\"flex gap-1 overflow-x-auto border-b border-line bg-surface-alt/30 px-4 py-2\" aria-label=\"Evidence filters\">")
-            .Append(FilterLink("All cases", "all", view, snapshot.Cases.Count))
-            .Append(FilterLink("Awaiting", "awaiting", view, awaitingReview))
-            .Append(FilterLink("Processing", "processing", view, snapshot.Queued))
-            .Append(FilterLink("Follow-up", "followup", view, followUp))
-            .Append(FilterLink("Cheating", "cheating", view, confirmedCheating))
-            .Append(FilterLink("Cleared", "cleared", view, cleared))
-            .Append(FilterLink("Failed", "failed", view, snapshot.Failed))
-            .Append(FilterLink("Unassigned", "unassigned", view, snapshot.Cases.Count(item => item.AssignedToClientId is null)))
-            .Append(FilterLink("Assigned to me", "mine", view, snapshot.Cases.Count(item => item.AssignedToClientId == originId)))
+            .Append(FilterLink("All cases", "all", view, snapshot.Cases.Count, proactiveBoard))
+            .Append(FilterLink("Awaiting", "awaiting", view, awaitingReview, proactiveBoard))
+            .Append(FilterLink("Processing", "processing", view, snapshot.Queued, proactiveBoard))
+            .Append(FilterLink("Follow-up", "followup", view, followUp, proactiveBoard))
+            .Append(FilterLink("Cheating", "cheating", view, confirmedCheating, proactiveBoard))
+            .Append(FilterLink("Cleared", "cleared", view, cleared, proactiveBoard))
+            .Append(FilterLink("Failed", "failed", view, snapshot.Failed, proactiveBoard))
+            .Append(FilterLink("Unassigned", "unassigned", view, snapshot.Cases.Count(item => item.AssignedToClientId is null), proactiveBoard))
+            .Append(FilterLink("Assigned to me", "mine", view, snapshot.Cases.Count(item => item.AssignedToClientId == originId), proactiveBoard))
             .Append("</nav>")
+            .Append(ProactiveBaselineBanner(proactiveBoard, baseline))
             .Append(SearchFilters(meta, view, snapshot.Cases))
             .Append("<div class=\"divide-y divide-line\">");
 
@@ -205,6 +258,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
             .Append(HeroSection(evidenceCase))
             .Append("<div class=\"dtd-detail-layout\"><main class=\"min-w-0 space-y-5\">")
             .Append(ReviewBanner(evidenceCase))
+            .Append(ProactiveDetectionSection(evidenceCase))
             .Append(ReviewSummarySection(evidenceCase))
             .Append("<section id=\"evidence\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"flex items-center justify-between gap-3 border-b border-line px-5 py-4\"><div><h3 class=\"font-semibold text-foreground\">Demo evidence</h3><p class=\"mt-0.5 text-sm text-muted\">Original match file and Discord delivery details.</p></div><i class=\"ph ph-film-strip text-2xl text-primary\"></i></div><div class=\"p-5\"><div class=\"dtd-evidence-grid\"><div class=\"min-w-0\">");
 
@@ -361,6 +415,8 @@ public sealed class DemosToDiscordWebfront : IDisposable
 
         if (evidenceCase.AntiCheat is not null)
             builder.Append(TimelineRow("Anti-cheat ban", evidenceCase.AntiCheat.WhenUtc, evidenceCase.DemoStartedAtUtc, "ph-shield-warning", evidenceCase.AntiCheat.Detection));
+        if (evidenceCase.LastProactiveDetectionAtUtc is not null)
+            builder.Append(TimelineRow("Proactive detection", evidenceCase.LastProactiveDetectionAtUtc.Value, evidenceCase.DemoStartedAtUtc, "ph-chart-line-up", $"Risk {evidenceCase.RiskScore:0.0}/100 — {evidenceCase.StrongestSignal ?? "statistical outlier"}"));
 
         if (timeline.LeftAtUtc is not null)
             builder.Append(TimelineRow("Player left", timeline.LeftAtUtc.Value, evidenceCase.DemoStartedAtUtc, "ph-sign-out", "Disconnect recorded by IW4MAdmin"));
@@ -413,6 +469,33 @@ public sealed class DemosToDiscordWebfront : IDisposable
             .Append(MetricTile("Snap hits", metrics.SnapHitCount.ToString("N0"), "ph-cursor-click", "text-primary"))
             .Append("</div><p class=\"mt-4 text-xs text-muted\">Metrics provide context only. Review the demo and surrounding evidence before taking action.</p></section>");
         return builder.ToString();
+    }
+
+    private static string ProactiveDetectionSection(EvidenceCase item)
+    {
+        if (!item.ProactiveDetectionObserved)
+            return string.Empty;
+        var builder = new StringBuilder("<section id=\"proactive\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-amber-500/30 bg-surface shadow-sm\"><div class=\"border-b border-line px-5 py-4\"><h3 class=\"font-semibold text-foreground\">Why this player was surfaced</h3><p class=\"text-sm text-muted\">Population comparison and sample evidence for human review. This is not an automatic punishment.</p></div><div class=\"grid grid-cols-2 gap-3 p-5 md:grid-cols-4\">");
+        builder.Append(MetricTile("Risk", $"{item.RiskScore:0.0}/100", "ph-warning", "text-amber-400"))
+            .Append(MetricTile("Level", item.RiskLevel ?? "Unknown", "ph-gauge", "text-amber-400"))
+            .Append(MetricTile("Confidence", item.DetectionConfidence ?? "Unknown", "ph-shield-check", "text-primary"))
+            .Append(MetricTile("Strongest signal", item.StrongestSignal ?? "Unavailable", "ph-crosshair", "text-red-400"))
+            .Append("</div><div class=\"overflow-x-auto border-t border-line\"><table class=\"w-full text-left\"><thead class=\"bg-surface-alt/30 text-xs uppercase text-muted\"><tr><th class=\"px-5 py-3\">Signal</th><th class=\"px-5 py-3\">Comparison</th><th class=\"px-5 py-3\">Sample</th><th class=\"px-5 py-3\">Risk</th></tr></thead><tbody class=\"divide-y divide-line\">");
+        foreach (var signal in item.DetectionSignals.OrderByDescending(signal => signal.RiskContribution))
+        {
+            var comparison = signal.Percentile is null
+                ? "Baseline unavailable"
+                : $"{signal.Percentile:0.###}th percentile · {signal.ExpectedMultiple:0.##}x expected";
+            builder.Append("<tr>")
+                .Append(Cell($"{signal.DisplayName}\n{signal.Scope}"))
+                .Append(Cell(comparison))
+                .Append(Cell($"{signal.SampleSize:N0} events / {signal.PopulationSize:N0} players"))
+                .Append(Cell($"+{signal.RiskContribution:0.0}"))
+                .Append("</tr>");
+        }
+        if (item.DetectionSignals.Count == 0)
+            builder.Append("<tr><td colspan=\"4\" class=\"px-5 py-5 text-sm text-muted\">The legacy proactive score has no retained signal breakdown.</td></tr>");
+        return builder.Append("</tbody></table></div></section>").ToString();
     }
 
     private static string ActionsSection(EvidenceCase item)
@@ -623,15 +706,23 @@ public sealed class DemosToDiscordWebfront : IDisposable
     {
         var games = cases.Select(item => item.Game).Where(item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(item => item);
         var servers = cases.Select(item => new { item.ServerId, item.ServerName }).DistinctBy(item => item.ServerId, StringComparer.OrdinalIgnoreCase).OrderBy(item => item.ServerName);
-        var builder = new StringBuilder($"<form data-enhance-nav=\"false\" method=\"get\" action=\"/Interaction/Render/{InteractionKey}\" class=\"grid gap-3 border-b border-line bg-surface-alt/10 px-4 py-4 md:grid-cols-2 xl:grid-cols-4\"><input type=\"hidden\" name=\"view\" value=\"{Encode(view)}\"><label class=\"xl:col-span-2\"><span class=\"mb-1 block text-xs font-semibold uppercase tracking-wide text-muted\">Search</span><div class=\"flex items-center rounded-lg border border-line bg-surface px-3\"><i class=\"ph ph-magnifying-glass text-muted\"></i><input name=\"q\" value=\"{Encode(Meta(meta, "q"))}\" placeholder=\"Player, case, GUID, map or server\" class=\"w-full border-0 bg-transparent px-2 py-2 text-sm text-foreground outline-none\"></div></label>");
+        var proactiveBoard = Meta(meta, "board").Equals("proactive", StringComparison.OrdinalIgnoreCase);
+        var boardInputs = proactiveBoard
+            ? "<input type=\"hidden\" name=\"board\" value=\"proactive\">"
+            : string.Empty;
+        var sourceOptions = proactiveBoard
+            ? new[] { ("proactive", "Proactive detection") }
+            : new[] { ("", "All sources"), ("proactive", "Proactive detection"), ("report", "Player report"), ("anticheat", "Anti-cheat"), ("manual", "Manual ban") };
+        var builder = new StringBuilder($"<form data-enhance-nav=\"false\" method=\"get\" action=\"/Interaction/Render/{InteractionKey}\" class=\"grid gap-3 border-b border-line bg-surface-alt/10 px-4 py-4 md:grid-cols-2 xl:grid-cols-4\"><input type=\"hidden\" name=\"view\" value=\"{Encode(view)}\">{boardInputs}<label class=\"xl:col-span-2\"><span class=\"mb-1 block text-xs font-semibold uppercase tracking-wide text-muted\">Search</span><div class=\"flex items-center rounded-lg border border-line bg-surface px-3\"><i class=\"ph ph-magnifying-glass text-muted\"></i><input name=\"q\" value=\"{Encode(Meta(meta, "q"))}\" placeholder=\"Player, case, GUID, map or server\" class=\"w-full border-0 bg-transparent px-2 py-2 text-sm text-foreground outline-none\"></div></label>");
         builder.Append(SelectFilter("game", "Game", Meta(meta, "game"), new[] { ("", "All games") }.Concat(games.Select(item => (item, item)))))
             .Append(SelectFilter("server", "Server", Meta(meta, "server"), new[] { ("", "All servers") }.Concat(servers.Select(item => (item.ServerId, item.ServerName)))))
-            .Append(SelectFilter("source", "Evidence source", Meta(meta, "source"), new[] { ("", "All sources"), ("report", "Player report"), ("anticheat", "Anti-cheat"), ("manual", "Manual ban") }))
+            .Append(SelectFilter("source", "Evidence source", Meta(meta, "source"), sourceOptions))
             .Append(SelectFilter("demo", "Demo state", Meta(meta, "demo"), new[] { ("", "Any demo state"), ("uploaded", "Uploaded"), ("unsupported", "Not supported"), ("missing", "Expected but missing"), ("processing", "Processing"), ("failed", "Failed") }))
             .Append(SelectFilter("review", "Review state", Meta(meta, "review"), new[] { ("", "Any review state"), ("Unreviewed", "Unreviewed"), ("NeedsMoreReview", "Needs more review"), ("CheatingActionTaken", "Cheating, action taken"), ("CheatingNoAction", "Cheating, no action"), ("NotCheatingNoAction", "Not cheating"), ("Inconclusive", "Inconclusive") }))
+            .Append(SelectFilter("risk", "Minimum risk", Meta(meta, "risk"), new[] { ("", "Any risk"), ("50", "Review — 50+"), ("65", "High — 65+"), ("80", "Very high — 80+") }))
             .Append(DateFilter("from", "Captured from", Meta(meta, "from")))
             .Append(DateFilter("to", "Captured to", Meta(meta, "to")))
-            .Append($"<div class=\"flex items-end gap-2\"><button type=\"submit\" class=\"inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-action-primary px-3 py-2 text-sm font-medium text-white hover:bg-action-primary-hover\"><i class=\"ph ph-funnel\"></i>Apply filters</button><a data-enhance-nav=\"false\" href=\"{OverviewUrl(view)}\" class=\"rounded-lg border border-line bg-surface px-3 py-2 text-sm text-muted hover:bg-surface-hover\">Clear</a></div></form>");
+            .Append($"<div class=\"flex items-end gap-2\"><button type=\"submit\" class=\"inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-action-primary px-3 py-2 text-sm font-medium text-white hover:bg-action-primary-hover\"><i class=\"ph ph-funnel\"></i>Apply filters</button><a data-enhance-nav=\"false\" href=\"{OverviewUrl(view, proactiveBoard)}\" class=\"rounded-lg border border-line bg-surface px-3 py-2 text-sm text-muted hover:bg-surface-hover\">Clear</a></div></form>");
         return builder.ToString();
     }
 
@@ -693,6 +784,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
             "report" => cases.Where(item => item.Reports.Count > 0),
             "anticheat" => cases.Where(item => item.AntiCheat is not null),
             "manual" => cases.Where(item => item.ManualBanObserved),
+            "proactive" => cases.Where(item => item.ProactiveDetectionObserved),
             _ => cases
         };
         cases = Meta(meta, "demo").ToLowerInvariant() switch
@@ -707,6 +799,8 @@ public sealed class DemosToDiscordWebfront : IDisposable
         var review = Meta(meta, "review");
         if (Enum.TryParse<EvidenceReviewDecision>(review, true, out var decision))
             cases = cases.Where(item => item.ReviewDecision == decision);
+        if (double.TryParse(Meta(meta, "risk"), NumberStyles.Float, CultureInfo.InvariantCulture, out var minimumRisk))
+            cases = cases.Where(item => item.RiskScore >= minimumRisk);
         if (DateTime.TryParse(Meta(meta, "from"), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var from))
             cases = cases.Where(item => item.CreatedAtUtc >= from.Date);
         if (DateTime.TryParse(Meta(meta, "to"), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var to))
@@ -720,18 +814,19 @@ public sealed class DemosToDiscordWebfront : IDisposable
         string icon,
         string color,
         string destinationView,
-        string currentView)
+        string currentView,
+        bool proactiveBoard)
     {
         var active = destinationView == currentView ? "bg-primary/5" : "hover:bg-surface-hover/30";
-        return $"<a data-enhance-nav=\"false\" href=\"{OverviewUrl(destinationView)}\" class=\"dtd-overview-metric flex min-w-0 items-center gap-3 border-r border-line px-4 py-4 transition-colors last:border-r-0 {active}\"><i class=\"ph {Encode(icon)} shrink-0 text-xl {Encode(color)}\"></i><div class=\"min-w-0\"><div class=\"text-xl font-bold text-foreground\">{value:N0}</div><div class=\"truncate text-xs text-muted\">{Encode(label)}</div></div></a>";
+        return $"<a data-enhance-nav=\"false\" href=\"{OverviewUrl(destinationView, proactiveBoard)}\" class=\"dtd-overview-metric flex min-w-0 items-center gap-3 border-r border-line px-4 py-4 transition-colors last:border-r-0 {active}\"><i class=\"ph {Encode(icon)} shrink-0 text-xl {Encode(color)}\"></i><div class=\"min-w-0\"><div class=\"text-xl font-bold text-foreground\">{value:N0}</div><div class=\"truncate text-xs text-muted\">{Encode(label)}</div></div></a>";
     }
 
-    private static string FilterLink(string label, string destinationView, string currentView, int count)
+    private static string FilterLink(string label, string destinationView, string currentView, int count, bool proactiveBoard)
     {
         var active = destinationView == currentView
             ? "bg-primary text-white"
             : "text-muted hover:bg-surface-hover hover:text-foreground";
-        return $"<a data-enhance-nav=\"false\" href=\"{OverviewUrl(destinationView)}\" class=\"inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors {active}\"><span>{Encode(label)}</span><span class=\"rounded bg-black/10 px-1.5 py-0.5 text-xs\">{count:N0}</span></a>";
+        return $"<a data-enhance-nav=\"false\" href=\"{OverviewUrl(destinationView, proactiveBoard)}\" class=\"inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors {active}\"><span>{Encode(label)}</span><span class=\"rounded bg-black/10 px-1.5 py-0.5 text-xs\">{count:N0}</span></a>";
     }
 
     private static string OverviewCaseRow(EvidenceCase item)
@@ -763,7 +858,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
                 <div class="mt-1 truncate text-xs text-muted" title="{Encode(item.ServerId)} · {Encode(item.Map)} / {Encode(item.Mode)}">{Encode(item.ServerId)} · {Encode(item.Map)} / {Encode(item.Mode)}</div>
               </div>
               <div class="flex flex-wrap items-center gap-2 md:justify-end">
-                {StatusBadge(item.Status)}{ReviewBadge(item.ReviewDecision)}
+                {RiskBadge(item)}{StatusBadge(item.Status)}{ReviewBadge(item.ReviewDecision)}
                 <a data-enhance-nav="false" href="{CaseUrl(item.Id)}" class="inline-flex items-center justify-center gap-2 rounded-lg bg-action-primary px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-action-primary-hover"><i class="ph ph-magnifying-glass"></i>Review case</a>
               </div>
             </article>
@@ -777,18 +872,38 @@ public sealed class DemosToDiscordWebfront : IDisposable
     private static string InfoBlock(string label, object value, string icon) =>
         $"<div class=\"min-w-0 rounded-lg border border-line bg-surface-alt/20 p-3\"><dt class=\"flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted\"><i class=\"ph {Encode(icon)}\"></i>{Encode(label)}</dt><dd class=\"mt-1 break-words text-sm font-medium text-foreground\">{Encode(value)}</dd></div>";
 
+    private static string ProactiveBaselineBanner(bool proactiveBoard, ProactiveBaselineStatus? status)
+    {
+        if (!proactiveBoard)
+            return string.Empty;
+        if (status is null)
+            return "<div class=\"border-b border-amber-500/30 bg-amber-500/10 px-5 py-3 text-sm text-amber-300\">Baseline health is currently unavailable. Review cases remain accessible.</div>";
+        var freshness = status.LastRefreshUtc is null ? "never refreshed" : $"refreshed {EvidenceTime.Format(status.LastRefreshUtc)}";
+        var quality = status.MapValues == 0 && status.VisibilityValues == 0
+            ? "Map and visibility telemetry unavailable; those signals are disabled."
+            : $"Map values {status.MapValues:N0} · visibility values {status.VisibilityValues:N0}.";
+        var error = string.IsNullOrWhiteSpace(status.LastError) ? string.Empty : $" · Last error: {Encode(status.LastError)}";
+        return $"<div class=\"border-b border-line bg-primary/5 px-5 py-3 text-sm text-muted\"><span class=\"font-medium text-foreground\">Baseline:</span> {status.SourceEvents:N0} tracked events · {status.CachedMembers:N0} cached members · {Encode(freshness)}. {Encode(quality)}{error}</div>";
+    }
+
     private static string TriggerLabel(EvidenceTriggerType trigger) => trigger switch
     {
         EvidenceTriggerType.AutomatedBan => "Anti-cheat",
         EvidenceTriggerType.ManualBan => "Manual ban",
+        EvidenceTriggerType.ProactiveDetection => "Proactive detection",
         _ => "Report"
     };
+
+    private static string RiskBadge(EvidenceCase item) => item.RiskScore is null
+        ? string.Empty
+        : $"<span class=\"rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-300\">Risk {item.RiskScore:0}</span>";
 
     internal static string CaseUrl(string caseId) =>
         $"/Interaction/Render/{InteractionKey}?case={WebUtility.UrlEncode(caseId)}";
 
-    private static string OverviewUrl(string view) =>
-        $"/Interaction/Render/{InteractionKey}?view={WebUtility.UrlEncode(view)}";
+    private static string OverviewUrl(string view, bool proactiveBoard = false) =>
+        $"/Interaction/Render/{InteractionKey}?view={WebUtility.UrlEncode(view)}" +
+        (proactiveBoard ? "&board=proactive&source=proactive" : string.Empty);
 
     private static string MetricTile(string label, string value, string icon, string color) =>
         $"<div class=\"rounded-lg border border-line bg-surface/30 p-3\"><div class=\"flex items-center justify-between gap-2\"><div class=\"text-lg font-bold text-foreground\">{Encode(value)}</div><i class=\"ph {Encode(icon)} {Encode(color)} text-lg\"></i></div><div class=\"mt-1 text-xs uppercase tracking-wide text-muted\">{Encode(label)}</div></div>";
@@ -850,6 +965,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         _disposed = true;
         _configurationHandler.Updated -= OnConfigurationUpdated;
         _interactions.UnregisterInteraction(InteractionKey);
+        _interactions.UnregisterInteraction(ProactiveInteractionKey);
         _interactions.UnregisterInteraction(ReviewInteractionKey);
     }
 }

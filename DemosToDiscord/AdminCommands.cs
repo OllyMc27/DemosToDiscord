@@ -157,3 +157,77 @@ public sealed class DemosToDiscordRetryCommand : Command
         gameEvent.Origin.TellAsync(messages, gameEvent.Owner.Manager.CancellationToken);
 }
 
+public sealed class DemosToDiscordBaselineCommand : Command
+{
+    private readonly ProactiveBaselineService _baselines;
+
+    public DemosToDiscordBaselineCommand(
+        CommandConfiguration config,
+        ITranslationLookup translationLookup,
+        ProactiveBaselineService baselines) : base(config, translationLookup)
+    {
+        _baselines = baselines;
+        Name = "dtdbaseline";
+        Alias = "dtdb";
+        Description = "shows DemosToDiscord proactive baseline health";
+        Permission = EFClient.Permission.Moderator;
+        RequiresTarget = false;
+    }
+
+    public override async Task ExecuteAsync(GameEvent gameEvent)
+    {
+        try
+        {
+            var status = await _baselines.GetStatusAsync(gameEvent.Owner.Manager.CancellationToken);
+            await gameEvent.Origin.TellAsync(
+                [$"DTD baseline: events={status.SourceEvents:N0}, members={status.CachedMembers:N0}, high-water={status.HighWaterKillId:N0}.",
+                    $"Last refresh: {(status.LastRefreshUtc is null ? "never" : EvidenceTime.Format(status.LastRefreshUtc))}; map values={status.MapValues:N0}; visibility values={status.VisibilityValues:N0}; error={status.LastError ?? "none"}."],
+                gameEvent.Owner.Manager.CancellationToken);
+        }
+        catch (Exception exception)
+        {
+            await gameEvent.Origin.TellAsync(
+                [$"DTD baseline status failed: {exception.Message}"],
+                gameEvent.Owner.Manager.CancellationToken);
+        }
+    }
+}
+
+public sealed class DemosToDiscordRebuildBaselineCommand : Command
+{
+    private readonly ProactiveBaselineService _baselines;
+
+    public DemosToDiscordRebuildBaselineCommand(
+        CommandConfiguration config,
+        ITranslationLookup translationLookup,
+        ProactiveBaselineService baselines) : base(config, translationLookup)
+    {
+        _baselines = baselines;
+        Name = "dtdrebuildbaseline";
+        Alias = "dtdrb";
+        Description = "rebuilds the DemosToDiscord proactive baseline";
+        Permission = EFClient.Permission.SeniorAdmin;
+        RequiresTarget = false;
+    }
+
+    public override async Task ExecuteAsync(GameEvent gameEvent)
+    {
+        try
+        {
+            await gameEvent.Origin.TellAsync(
+                ["DTD proactive baseline rebuild started."],
+                gameEvent.Owner.Manager.CancellationToken);
+            var status = await _baselines.RefreshAsync(true, gameEvent.Owner.Manager.CancellationToken);
+            await gameEvent.Origin.TellAsync(
+                [$"DTD baseline rebuilt: events={status.SourceEvents:N0}, members={status.CachedMembers:N0}, high-water={status.HighWaterKillId:N0}."],
+                gameEvent.Owner.Manager.CancellationToken);
+        }
+        catch (Exception exception)
+        {
+            await gameEvent.Origin.TellAsync(
+                [$"DTD baseline rebuild failed: {exception.Message}"],
+                gameEvent.Owner.Manager.CancellationToken);
+        }
+    }
+}
+

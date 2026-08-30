@@ -13,6 +13,7 @@ public sealed class DemoUploadService : IDisposable
     private readonly DemoLocator _locator;
     private readonly DiscordWebhookClient _discord;
     private readonly PlayerTimelineService _timeline;
+    private readonly PlayerNoteService _playerNotes;
     private readonly ILogger<DemoUploadService> _logger;
     private readonly Channel<string> _queue = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
     {
@@ -29,6 +30,7 @@ public sealed class DemoUploadService : IDisposable
         DemoLocator locator,
         DiscordWebhookClient discord,
         PlayerTimelineService timeline,
+        PlayerNoteService playerNotes,
         ILogger<DemoUploadService> logger)
     {
         _config = config;
@@ -36,6 +38,7 @@ public sealed class DemoUploadService : IDisposable
         _locator = locator;
         _discord = discord;
         _timeline = timeline;
+        _playerNotes = playerNotes;
         _logger = logger;
     }
 
@@ -103,6 +106,28 @@ public sealed class DemoUploadService : IDisposable
                 return;
             }
 
+            if (_config.AddPlayerNotesOnPenalty)
+            {
+                var actorId = evt.Penalty.Punisher?.ClientId ?? 0;
+                var actorName = evt.Penalty.Punisher?.CurrentAlias?.Name.StripColors() ?? "IW4MAdmin administrator";
+                var penaltyAction = PenaltyAction(evt.Penalty);
+                var noteId = await _playerNotes.AppendCaseActionAsync(
+                    linkedCase.TargetClientId,
+                    actorId,
+                    actorName,
+                    linkedCase.Id,
+                    penaltyAction,
+                    token);
+                await _store.UpdateAsync(linkedCase.Id, item =>
+                {
+                    var history = item.History.LastOrDefault(entry =>
+                        entry.Action == EvidenceHistoryAction.PenaltyLinked &&
+                        entry.PenaltyId == (evt.Penalty.PenaltyId > 0 ? evt.Penalty.PenaltyId : null));
+                    if (history is not null)
+                        history.PlayerNoteMetaId = noteId;
+                }, token);
+            }
+
             if (!string.IsNullOrWhiteSpace(linkedCase.DiscordMessageId))
                 await UpdateCaseDiscordAsync(linkedCase.Id, token);
             _logger.LogInformation(
@@ -157,6 +182,78 @@ public sealed class DemoUploadService : IDisposable
         _logger.LogInformation(
             "[DemosToDiscord] {Trigger} added to evidence case {CaseId} for {Target} on {Game} {Server}",
             trigger, result.Case.Id, result.Case.TargetName, game, result.Case.ServerName);
+    }
+
+    public async Task<EvidenceCase?> CaptureProactiveAsync(
+        ProactiveEvaluationTarget target,
+        RiskAssessment assessment,
+        CancellationToken token)
+    {
+        if (!_config.Enabled || !_config.ProactiveDetection.Enabled || !assessment.ShouldCreateCase)
+            return null;
+        var serverOverride = ResolveOverride(target.ServerId, target.LegacyServerId);
+        if (serverOverride?.Enabled == false || serverOverride?.EnableProactiveDetection == false)
+            return null;
+
+        var capture = new PenaltyCapture(
+            EvidenceTriggerType.ProactiveDetection,
+            target.RequestedAtUtc,
+            target.ServerId,
+            target.ServerName,
+            target.LegacyServerId,
+            target.Game,
+            target.Map,
+            target.Mode,
+            target.ClientId,
+            target.NetworkId,
+            target.ClientName,
+            0,
+            "DemosToDiscord detector",
+            assessment.StrongestSignal ?? "Statistical outlier",
+            assessment.StrongestSignal ?? "Statistical outlier");
+        var result = await _store.AddOrMergeAsync(capture, token);
+        var demoCapability = EvidenceAssessment.DemoCapability(result.Case, _config, serverOverride);
+        await _store.UpdateAsync(result.Case.Id, item =>
+        {
+            item.RiskScore = assessment.Score;
+            item.RiskLevel = assessment.Level;
+            item.DetectionConfidence = assessment.Confidence;
+            item.StrongestSignal = assessment.StrongestSignal;
+            item.DemoSupport = demoCapability.Status;
+            item.DemoSupportReason = demoCapability.Reason;
+            item.DetectionSignals.AddRange(assessment.Signals);
+            if (item.DetectionSignals.Count > 100)
+                item.DetectionSignals = item.DetectionSignals.OrderByDescending(signal => signal.ObservedAtUtc).Take(100).ToList();
+            item.History.Add(new EvidenceHistoryEntry
+            {
+                WhenUtc = target.RequestedAtUtc,
+                Action = EvidenceHistoryAction.ProactiveDetectionAdded,
+                Summary = $"Proactive risk {assessment.Score:0.0}/100 ({assessment.Level}, {assessment.Confidence} confidence) from {target.Reason}."
+            });
+        }, token);
+
+        var updated = _store.Get(result.Case.Id)!;
+        if (result.NeedsUpload)
+        {
+            await _store.UpdateAsync(updated.Id, item =>
+            {
+                item.Status = EvidenceCaseStatus.Queued;
+                item.LastError = null;
+            }, token);
+            await _queue.Writer.WriteAsync(updated.Id, token);
+        }
+        else if (!string.IsNullOrWhiteSpace(updated.DiscordMessageId))
+        {
+            await UpdateCaseDiscordAsync(updated.Id, token);
+        }
+
+        _logger.LogWarning(
+            "[DemosToDiscord] Proactive review case {CaseId} created or updated for client {ClientId}: {Risk:0.0}/100 {Level}",
+            updated.Id,
+            target.ClientId,
+            assessment.Score,
+            assessment.Level);
+        return _store.Get(updated.Id);
     }
 
     public EvidenceStoreSnapshot GetSnapshot() => _store.Snapshot();
@@ -364,15 +461,26 @@ public sealed class DemoUploadService : IDisposable
                 : null;
         }
 
-        return (serverOverride?.UploadOnManualBans ?? _config.UploadOnManualBans)
-            ? EvidenceTriggerType.ManualBan
-            : null;
+        // Manual bans never create a new case. Always attempt to link them to a
+        // recent case so native case-screen penalties remain auditable even when
+        // standalone manual-ban collection is disabled.
+        return EvidenceTriggerType.ManualBan;
     }
 
     internal static bool IsAutomatedBan(EFPenalty penalty, string? automatedOffense) =>
         penalty.Type == EFPenalty.PenaltyType.Ban &&
         penalty.PunisherId == 1 &&
         !string.IsNullOrWhiteSpace(automatedOffense);
+
+    private static string PenaltyAction(EFPenalty penalty)
+    {
+        var offense = string.IsNullOrWhiteSpace(penalty.Offense) ? "No reason supplied" : penalty.Offense.Trim();
+        if (offense.Length > 180)
+            offense = offense[..177] + "...";
+        return penalty.Expires is not null && penalty.Expires > DateTime.UtcNow
+            ? $"Temp banned until {EvidenceTime.Format(penalty.Expires)} — {offense}"
+            : $"Perm banned — {offense}";
+    }
 
     private string ResolveDemoFolder(EvidenceCase evidenceCase)
     {

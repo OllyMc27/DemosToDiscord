@@ -2,7 +2,7 @@
 
 DemosToDiscord is an IW4MAdmin plugin that turns player reports and automated anti-cheat bans into organised evidence cases. It finds the relevant Plutonium demo when the game supports one, uploads the original files to Discord, and gives moderators a structured webfront review workflow.
 
-This Wiki covers DemosToDiscord 2.3.x.
+This Wiki covers DemosToDiscord 3.0.x.
 
 ![DemosToDiscord evidence queue](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-evidence-queue.png)
 

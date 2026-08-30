@@ -6,16 +6,22 @@ namespace DemosToDiscord;
 public sealed class EvidenceCaseStore
 {
     private readonly DemosToDiscordConfig _config;
+    private readonly DemosToDiscordDatabase _database;
     private readonly ILogger<EvidenceCaseStore> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private readonly List<EvidenceCase> _cases = [];
     private readonly DateTime _startedAtUtc = DateTime.UtcNow;
     private bool _loaded;
+    private bool _databaseAvailable;
 
-    public EvidenceCaseStore(DemosToDiscordConfig config, ILogger<EvidenceCaseStore> logger)
+    public EvidenceCaseStore(
+        DemosToDiscordConfig config,
+        DemosToDiscordDatabase database,
+        ILogger<EvidenceCaseStore> logger)
     {
         _config = config;
+        _database = database;
         _logger = logger;
     }
 
@@ -27,16 +33,25 @@ public sealed class EvidenceCaseStore
             if (_loaded)
                 return;
 
-            var path = ResolvePath();
-            if (File.Exists(path))
+            try
             {
-                await using var stream = File.OpenRead(path);
-                var loaded = await JsonSerializer.DeserializeAsync<List<EvidenceCase>>(stream, _jsonOptions, token);
-                if (loaded is not null)
-                    _cases.AddRange(loaded);
+                await _database.InitializeAsync(token);
+                _cases.AddRange(await _database.LoadCasesAsync(token));
+                _databaseAvailable = true;
+                await ImportLegacyCasesUnsafeAsync(token);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "[DemosToDiscord] Database persistence could not be initialized; using the legacy state file for this run");
+                _databaseAvailable = false;
+                await LoadLegacyCasesUnsafeAsync(token);
             }
 
-            PruneUnsafe();
+            var removed = PruneUnsafe();
+            if (_databaseAvailable && removed.Count > 0)
+                await _database.DeleteCasesAsync(removed, token);
             _loaded = true;
         }
         catch (Exception exception)
@@ -122,6 +137,10 @@ public sealed class EvidenceCaseStore
                 case EvidenceTriggerType.ManualBan:
                     evidenceCase.ManualBanObserved = true;
                     break;
+                case EvidenceTriggerType.ProactiveDetection:
+                    evidenceCase.ProactiveDetectionObserved = true;
+                    evidenceCase.LastProactiveDetectionAtUtc = capture.WhenUtc;
+                    break;
             }
 
             if (!created)
@@ -134,8 +153,8 @@ public sealed class EvidenceCaseStore
                 });
             }
 
-            PruneUnsafe();
-            await SaveUnsafeAsync(token);
+            var removed = PruneUnsafe();
+            await PersistUnsafeAsync(evidenceCase, removed, token);
             var needsUpload = created || evidenceCase.Status is EvidenceCaseStatus.NoDemo or EvidenceCaseStatus.Failed;
             return (Clone(evidenceCase), created, needsUpload);
         }
@@ -157,7 +176,7 @@ public sealed class EvidenceCaseStore
 
             update(evidenceCase);
             evidenceCase.UpdatedAtUtc = DateTime.UtcNow;
-            await SaveUnsafeAsync(token);
+            await PersistUnsafeAsync(evidenceCase, [], token);
         }
         finally
         {
@@ -190,12 +209,13 @@ public sealed class EvidenceCaseStore
             evidenceCase.History.Add(new EvidenceHistoryEntry
             {
                 WhenUtc = whenUtc,
-                Action = EvidenceHistoryAction.EvidenceAdded,
+                Action = EvidenceHistoryAction.PenaltyLinked,
                 Summary = penaltyId is > 0
                     ? $"Manual ban penalty #{penaltyId} linked to this case."
-                    : "Manual ban linked to this case."
+                    : "Manual ban linked to this case.",
+                PenaltyId = penaltyId
             });
-            await SaveUnsafeAsync(token);
+            await PersistUnsafeAsync(evidenceCase, [], token);
             return Clone(evidenceCase);
         }
         finally
@@ -211,6 +231,21 @@ public sealed class EvidenceCaseStore
         {
             var result = _cases.FirstOrDefault(item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
             return result is null ? null : Clone(result);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public int CountRecentProactiveCases(int targetClientId, DateTime sinceUtc)
+    {
+        _gate.Wait();
+        try
+        {
+            return _cases.Count(item => item.TargetClientId == targetClientId &&
+                                        item.ProactiveDetectionObserved &&
+                                        item.CreatedAtUtc >= sinceUtc);
         }
         finally
         {
@@ -241,12 +276,14 @@ public sealed class EvidenceCaseStore
         }
     }
 
-    private void PruneUnsafe()
+    private List<string> PruneUnsafe()
     {
+        var before = _cases.Select(item => item.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var item in _cases)
         {
             item.Reports ??= [];
             item.History ??= [];
+            item.DetectionSignals ??= [];
         }
 
         var cutoff = DateTime.UtcNow.AddDays(-Math.Max(1, _config.CaseRetentionDays));
@@ -257,9 +294,76 @@ public sealed class EvidenceCaseStore
             var remove = _cases.OrderBy(item => item.UpdatedAtUtc).Take(overflow).Select(item => item.Id).ToHashSet();
             _cases.RemoveAll(item => remove.Contains(item.Id));
         }
+
+        before.ExceptWith(_cases.Select(item => item.Id));
+        return before.ToList();
     }
 
-    private async Task SaveUnsafeAsync(CancellationToken token)
+    private async Task PersistUnsafeAsync(
+        EvidenceCase evidenceCase,
+        IReadOnlyCollection<string> removed,
+        CancellationToken token)
+    {
+        if (_databaseAvailable)
+        {
+            await _database.SaveCaseAsync(evidenceCase, token);
+            if (removed.Count > 0)
+                await _database.DeleteCasesAsync(removed, token);
+            return;
+        }
+
+        await SaveLegacyUnsafeAsync(token);
+    }
+
+    private async Task LoadLegacyCasesUnsafeAsync(CancellationToken token)
+    {
+        var path = ResolvePath();
+        if (!File.Exists(path))
+            return;
+        await using var stream = File.OpenRead(path);
+        var loaded = await JsonSerializer.DeserializeAsync<List<EvidenceCase>>(stream, _jsonOptions, token);
+        if (loaded is not null)
+            _cases.AddRange(loaded);
+    }
+
+    private async Task ImportLegacyCasesUnsafeAsync(CancellationToken token)
+    {
+        if (!_config.ImportLegacyStateFile)
+            return;
+        var path = ResolvePath();
+        if (!File.Exists(path))
+            return;
+
+        await using var stream = File.OpenRead(path);
+        var legacy = await JsonSerializer.DeserializeAsync<List<EvidenceCase>>(stream, _jsonOptions, token) ?? [];
+        var known = _cases.Select(item => item.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var imported = 0;
+        foreach (var item in legacy.Where(item => !known.Contains(item.Id)))
+        {
+            item.Reports ??= [];
+            item.History ??= [];
+            item.DetectionSignals ??= [];
+            item.History.Add(new EvidenceHistoryEntry
+            {
+                WhenUtc = DateTime.UtcNow,
+                Action = EvidenceHistoryAction.EvidenceAdded,
+                Summary = "Legacy JSON case imported into Database.db."
+            });
+            item.UpdatedAtUtc = item.UpdatedAtUtc == default ? DateTime.UtcNow : item.UpdatedAtUtc;
+            _cases.Add(item);
+            known.Add(item.Id);
+            await _database.SaveCaseAsync(item, token);
+            imported++;
+        }
+
+        if (imported > 0)
+            _logger.LogInformation(
+                "[DemosToDiscord] Imported {Count} legacy evidence case(s) from {Path}; the source file was preserved",
+                imported,
+                path);
+    }
+
+    private async Task SaveLegacyUnsafeAsync(CancellationToken token)
     {
         var path = ResolvePath();
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -281,6 +385,7 @@ public sealed class EvidenceCaseStore
         EvidenceTriggerType.Report => "a player report",
         EvidenceTriggerType.AutomatedBan => "an automated anti-cheat ban",
         EvidenceTriggerType.ManualBan => "a manual ban",
+        EvidenceTriggerType.ProactiveDetection => "proactive statistical detection",
         _ => "evidence"
     };
 }

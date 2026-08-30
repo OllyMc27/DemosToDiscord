@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.0.0 - 2026-08-30
+
+- Moved retained evidence cases, reports, review state, assignment, audit events, Discord linkage and proactive detection signals into versioned tables in IW4MAdmin's SQLite `Database.db`.
+- Added safe one-time import from `DemosToDiscordCases.json`; the original JSON file is preserved and remains an emergency fallback if database initialization fails.
+- Added indexed, foreign-keyed case/report/event/signal tables with transactional graph updates and retention cleanup.
+- Added deterministic percentile-based risk scoring with minimum sample, positive-event and population safeguards, multi-signal weighting and repeat-history weighting.
+- Added an integrated **Proactive Review** board and explainable risk/signal panels that reuse the existing evidence review workflow.
+- Added native IW4MAdmin player-note integration for meaningful review outcomes, with optional assignment notes and retained `EFMeta` references in case history.
+- Added executable verification coverage for migrations, persistence round-trips, JSON import, case merging, sample safeguards, scoring and player-note preservation.
+- Added a compact, incrementally refreshed `EFClientKills` baseline cache with high-water tracking, weekly rebuilds and telemetry-quality counters.
+- Added delayed, deduplicated evaluation after match end and player disconnect, with unchanged-data suppression.
+- Added live T6/IW5 weapon-specific tracked-hit head-rate observations and conservative T4/T5 cumulative head-rate fallbacks. T5 Zombies remains excluded.
+- Added proactive case creation/merging, demo routing, Discord delivery and audit history without automatic punishment.
+- Added `!dtdbaseline` health reporting and a SeniorAdmin-only `!dtdrebuildbaseline` command.
+- Expanded verification to cover a 40,800-event baseline rebuild, attachment normalization, population evaluation and duplicate suppression.
+
 ## 2.3.3
 
 - Added a configurable `TimeZone` setting for webfront and Discord timestamps, defaulting to `Europe/London`.
