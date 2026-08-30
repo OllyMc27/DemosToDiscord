@@ -19,6 +19,7 @@ The proactive human-review upgrade is implemented as one coherent release candid
 - Compact full/incremental `EFClientKills` baseline cache with high-water tracking, telemetry-quality counters and periodic full rebuilds.
 - Delayed, deduplicated match-end and disconnect scheduling with unchanged-data suppression.
 - Proactive case create/merge, existing demo routing, Discord synchronization and case audit history.
+- Dedicated global/per-server proactive Discord role routing; proactive-only cases do not borrow the report role.
 - Dedicated Proactive Review navigation, baseline-health banner, minimum-risk filter, risk badges and signal explanations.
 - `!dtdbaseline` health and `!dtdrebuildbaseline` maintenance commands.
 - Configuration, installation, command, README and changelog updates for version 3.0.0.
@@ -67,9 +68,9 @@ dotnet build DemosToDiscord.sln -c Release --no-restore -p:NuGetAudit=false
 dotnet run --project DemosToDiscord.Tests/DemosToDiscord.Tests.csproj -c Release --no-build --no-restore
 ```
 
-Result: Release build succeeded with 0 warnings and 0 errors; 7/7 checks passed.
+Result: Release build succeeded with 0 warnings and 0 errors; 8/8 checks passed.
 
-Coverage includes migrations, case graph round-trip/cascade, legacy import/merge, risk safeguards, 40,800-event baseline rebuild, attachment normalization, T6 live population evaluation, unchanged-data suppression, T5 fallback, game capability exclusions and native note preservation.
+Coverage includes migrations, case graph round-trip/cascade, legacy import/merge, proactive/report case merging, Discord role priority, risk safeguards, 40,800-event baseline rebuild, incremental high-water processing, attachment normalization, T6 live population evaluation, unchanged-data suppression, T5 fallback, game capability exclusions and native note preservation.
 
 ## Remaining before production rollout
 
