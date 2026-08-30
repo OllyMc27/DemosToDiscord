@@ -32,6 +32,7 @@ public sealed class DemosToDiscordConfig
     public int CaseRetentionDays { get; set; } = 90;
     public int MaxStoredCases { get; set; } = 500;
     public string StateFilePath { get; set; } = "Configuration/DemosToDiscordCases.json";
+    public string TimeZone { get; set; } = EvidenceTime.DefaultTimeZoneId;
 
     public bool SendMetadataOnlyCasesToDiscord { get; set; } = true;
     public string ReportRoleId { get; set; } = string.Empty;

@@ -1,55 +1,71 @@
-# DemosToDiscord
+![DemosToDiscord — IW4MAdmin evidence review](docs/images/demostodiscord-banner.png)
 
-[![Release](https://img.shields.io/github/v/release/OllyMc27/DemosToDiscord?style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/releases)
+[![Release](https://img.shields.io/github/v/release/OllyMc27/DemosToDiscord?style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/OllyMc27/DemosToDiscord/ci.yml?branch=master&style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/actions)
 [![License](https://img.shields.io/github/license/OllyMc27/DemosToDiscord?style=flat-square)](LICENSE)
 
-An [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin) plugin that turns player reports and automated anti-cheat bans into organised evidence cases with Discord demo delivery and a webfront review workflow.
+## Turn player reports into review-ready evidence—automatically
 
-![Completed evidence review in Discord](docs/images/discord-evidence-review.png)
+DemosToDiscord connects [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin), Plutonium demos and Discord. It finds the right match recording, groups the surrounding evidence into one case and gives moderators a purpose-built review workflow inside the IW4MAdmin webfront.
 
-## Features
+[Download the latest release](https://github.com/OllyMc27/DemosToDiscord/releases/latest) · [Installation guide](https://github.com/OllyMc27/DemosToDiscord/wiki/Installation-and-Upgrades) · [Complete Wiki](https://github.com/OllyMc27/DemosToDiscord/wiki)
 
-### Evidence collection
+![DemosToDiscord evidence queue](docs/images/webfront-evidence-queue.png)
 
-- Uploads T5 and T6 `.demo` files directly to Discord, without ZIP archives or filename changes, so downloads remain compatible with Plutonium theatre.
-- Captures T6 automated anti-cheat bans even when nobody reports the player.
-- Groups reports, automated detections and observed manual bans from the same match into one case; manual bans never create a separate cross-server case.
-- Uses T6 JSON metadata to confirm the target GUID when available.
-- Keeps T4, IW5 and T5 Zombies reports as metadata-only cases where demo recording is unavailable.
-- Uses a background queue with deduplication, retries and stable-file checks.
+### One queue. Every case. No digging through Discord history.
 
-### Webfront review
+- Search and filter by player, case, GUID, game, server, source, demo state, review state or date.
+- See uploaded, missing and metadata-only evidence together.
+- Share work through unassigned and assigned-to-me queues.
+- Group repeat reports and detections from the same match into one case.
 
-- Adds a permission-protected **Admin → Demo Evidence** dashboard and detailed case page.
-- Supports player/case search and filters for game, server, source, demo state, review state and date.
-- Includes unassigned and assigned-to-me queues for shared admin teams.
-- Shows match details, reports, demo downloads, game statistics, anti-cheat metrics and event snapshots.
-- Adds a player timeline with join, report, anti-cheat and leave times plus their positions within the demo.
-- Adds evidence confidence, case activity history and previous retained cases for the same player.
-- Reuses IW4MAdmin's native profile, statistics, Ban, Kick, Flag and Add Note actions.
-- Records review outcomes, reviewer notes and case-scoped report clearing.
+## Everything needed to make a decision
 
-### Discord integration
+![Structured evidence case review](docs/images/webfront-case-review.png)
 
-- Sends compact evidence embeds with direct links to the case and player profile.
-- Keeps Discord attachments downloadable through fresh CDN links in the webfront.
-- Updates the original Discord message when a case is assigned or reviewed.
-- Uses UK local time in the `HH:mm:ss dd/MM/yyyy` format throughout the webfront and Discord.
-- Supports default, per-game and per-server webhooks plus optional restricted role notifications.
+Each case brings together the original demo, T6 JSON metadata, server and match context, reports, review notes and IW4MAdmin's native player actions. Moderators can assign work, ban, kick, flag, add notes, clear only the attached reports and record a final outcome without leaving the page.
 
-Only case metadata and review history are retained by the plugin; demo contents are not copied into its state file, and webhook secrets are never displayed or stored there.
+## Jump straight to the useful moment
 
-## Installation
+![Match timeline and anti-cheat metrics](docs/images/webfront-timeline-metrics.png)
+
+The match timeline shows when recording began, when the player joined, every report or anti-cheat event and when the player left—including the offset into the demo. Player statistics and anti-cheat metrics sit alongside the timeline as context for the review.
+
+## Discord evidence that stays in sync
+
+![Completed evidence review in Discord](docs/images/discord-review-completed.png)
+
+- Uploads the original `.demo` directly—no ZIP archive and no renamed theatre file.
+- Includes the T6 `.json` metadata sidecar when available.
+- Links straight back to the evidence case and native player profile.
+- Updates the original message when a case is assigned or reviewed while keeping its attachments.
+- Supports global, per-game and per-server webhooks with optional role mentions.
+
+## No demo support does not mean a lost report
+
+![Metadata-only evidence case](docs/images/webfront-metadata-only.png)
+
+T4, IW5 and T5 Zombies reports remain fully actionable metadata-only cases. Administrators still get the report, player context, statistics, assignment, review controls and audit trail, with a clear explanation that recording is unsupported.
+
+## What it captures
+
+| Game/session | Evidence case | Demo delivery |
+|---|---:|---:|
+| T6 multiplayer | Yes | `.demo` + `.json` |
+| T5 multiplayer | Yes | `.demo` |
+| T5 Zombies | Yes | Metadata only |
+| T4 | Yes | Metadata only |
+| IW5 | Yes | Metadata only |
+
+Configured T6 automated anti-cheat bans can create evidence even when nobody reports the player. Manual bans only attach to a recent matching case, preventing unrelated cross-server evidence.
+
+## Install in minutes
 
 1. Download `DemosToDiscord.dll` from the [latest release](https://github.com/OllyMc27/DemosToDiscord/releases/latest).
 2. Copy it into `IW4MAdmin/Plugins`, replacing any older version.
 3. Restart IW4MAdmin and edit `Configuration/DemosToDiscord.json`.
-4. Set `Webhook`, `T5DemoPath` and `T6DemoPath`, then restart IW4MAdmin again.
-
-Moderators can then open **Admin → Demo Evidence**. Set IW4MAdmin's `Webfront.ManualUrl` to its public address to include working case links in Discord.
-
-## Configuration
+4. Set the Discord webhook and T5/T6 demo paths, then restart IW4MAdmin.
+5. Open **Admin → Demo Evidence**.
 
 ```json
 {
@@ -57,30 +73,26 @@ Moderators can then open **Admin → Demo Evidence**. Set IW4MAdmin's `Webfront.
   "Webhook": "https://discord.com/api/webhooks/...",
   "T5DemoPath": "C:\\Plutonium\\storage\\t5\\demos",
   "T6DemoPath": "C:\\Plutonium\\storage\\t6\\demos",
-  "UploadOnReports": true,
-  "UploadOnAutomatedBans": true,
-  "AutomatedBanGames": [ "T6" ],
-  "EnableWebfrontDashboard": true,
-  "WebfrontMinimumPermission": "Moderator",
-  "SendMetadataOnlyCasesToDiscord": true
+  "TimeZone": "Europe/London"
 }
 ```
 
-The [complete configuration example](examples/DemosToDiscord.json) documents queue timing, retention, demo-capability overrides, per-game/server webhooks and optional Discord role IDs. Server overrides can use an endpoint, legacy server ID or `"*"` fallback.
+The [complete configuration reference](https://github.com/OllyMc27/DemosToDiscord/wiki/Configuration) covers queue timing, retention, privacy, timezones, capability overrides, Discord routing, server overrides and every supported setting. Set IW4MAdmin's `Webfront.ManualUrl` to its public address to include working case links in Discord.
 
-## Admin commands
+## Built for shared administration
 
-| Command | Permission | Purpose |
-|---|---|---|
-| `!dtdstatus` | Moderator | Show queue and configuration status |
-| `!dtdstats` | Moderator | Show evidence totals |
-| `!dtdfind <case-id>` | Moderator | Preview the best current demo match |
-| `!dtdtest` | SeniorAdmin | Test the default Discord webhook |
-| `!dtdretry <case-id>` | SeniorAdmin | Requeue a failed or missing-demo case |
+- Permission-protected webfront access and native IW4MAdmin confirmation forms.
+- Configurable timezone plus per-server collection and Discord-routing overrides.
+- Stable-file checks, background processing, deduplication and retry controls.
+- Case history, previous player evidence and case-scoped report clearing.
+- In-game status, statistics, demo-search, webhook-test and retry commands.
 
-Case metadata is saved to `Configuration/DemosToDiscordCases.json`. Clearing reports affects only matching penalties attached to that evidence case.
+See the [Admin Commands guide](https://github.com/OllyMc27/DemosToDiscord/wiki/Admin-Commands) for command names and permissions.
+
+## Privacy
+
+The plugin retains case metadata and review history—not demo contents or raw chat. Webhook secrets are never written to the case state file or displayed in the webfront. Review the [Privacy and Data guide](https://github.com/OllyMc27/DemosToDiscord/wiki/Privacy-and-Data) before publishing logs or screenshots.
 
 ## License
 
 [MIT](LICENSE)
-

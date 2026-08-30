@@ -201,7 +201,7 @@ public sealed class DiscordWebhookClient : IDisposable
         if (evidenceCase.Reports.Count > 0)
         {
             var reports = string.Join("\n", evidenceCase.Reports.Take(5).Select(item =>
-                $"• **{DiscordText(item.ReporterName)}:** {DiscordText(item.Reason)} — {EvidenceTime.FormatUk(item.WhenUtc)} UK, {EvidenceTime.MatchOffset(item.WhenUtc, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()}"));
+                $"• **{DiscordText(item.ReporterName)}:** {DiscordText(item.Reason)} — {EvidenceTime.Format(item.WhenUtc)} {EvidenceTime.Label}, {EvidenceTime.MatchOffset(item.WhenUtc, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()}"));
             if (evidenceCase.Reports.Count > 5)
                 reports += $"\n*+{evidenceCase.Reports.Count - 5} more report(s)*";
             fields.Add(new { name = "Player reports", value = Limit(reports, 1024), inline = false });
@@ -233,7 +233,7 @@ public sealed class DiscordWebhookClient : IDisposable
         var embed = new Dictionary<string, object>
         {
             ["title"] = Limit(title, 256),
-            ["description"] = $"Case `{evidenceCase.Id}` • captured **{EvidenceTime.FormatUk(evidenceCase.CreatedAtUtc)} UK**",
+            ["description"] = $"Case `{evidenceCase.Id}` • captured **{EvidenceTime.Format(evidenceCase.CreatedAtUtc)} {EvidenceTime.Label}**",
             ["timestamp"] = evidenceCase.CreatedAtUtc.ToUniversalTime().ToString("O"),
             ["color"] = EmbedColor(evidenceCase),
             ["author"] = new { name = "IW4MAdmin • Demo Evidence" },
@@ -356,18 +356,18 @@ public sealed class DiscordWebhookClient : IDisposable
     {
         var lines = new List<string>();
         if (evidenceCase.DemoStartedAtUtc is not null)
-            lines.Add($"🎬 Match started — **{EvidenceTime.FormatUk(evidenceCase.DemoStartedAtUtc)} UK**");
+            lines.Add($"🎬 Match started — **{EvidenceTime.Format(evidenceCase.DemoStartedAtUtc)} {EvidenceTime.Label}**");
         if (evidenceCase.PlayerJoinedAtUtc is not null)
-            lines.Add($"➡️ Player joined — **{EvidenceTime.FormatUk(evidenceCase.PlayerJoinedAtUtc)} UK** ({EvidenceTime.MatchOffset(evidenceCase.PlayerJoinedAtUtc.Value, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
+            lines.Add($"➡️ Player joined — **{EvidenceTime.Format(evidenceCase.PlayerJoinedAtUtc)} {EvidenceTime.Label}** ({EvidenceTime.MatchOffset(evidenceCase.PlayerJoinedAtUtc.Value, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
         foreach (var report in evidenceCase.Reports.OrderBy(item => item.WhenUtc).Take(5))
-            lines.Add($"🚩 Reported — **{EvidenceTime.FormatUk(report.WhenUtc)} UK** ({EvidenceTime.MatchOffset(report.WhenUtc, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
+            lines.Add($"🚩 Reported — **{EvidenceTime.Format(report.WhenUtc)} {EvidenceTime.Label}** ({EvidenceTime.MatchOffset(report.WhenUtc, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
         if (evidenceCase.PlayerLeftAtUtc is not null)
-            lines.Add($"⬅️ Player left — **{EvidenceTime.FormatUk(evidenceCase.PlayerLeftAtUtc)} UK** ({EvidenceTime.MatchOffset(evidenceCase.PlayerLeftAtUtc.Value, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
+            lines.Add($"⬅️ Player left — **{EvidenceTime.Format(evidenceCase.PlayerLeftAtUtc)} {EvidenceTime.Label}** ({EvidenceTime.MatchOffset(evidenceCase.PlayerLeftAtUtc.Value, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
         return Limit(lines.Count == 0 ? "Timeline data is not available for this case." : string.Join("\n", lines), 1024);
     }
 
     private static string FormatDiscordTime(DateTime? value) =>
-        value is null ? string.Empty : $" at {EvidenceTime.FormatUk(value)} UK";
+        value is null ? string.Empty : $" at {EvidenceTime.Format(value)} {EvidenceTime.Label}";
 
     internal static string AttachmentFileName(string path) => Path.GetFileName(path);
 

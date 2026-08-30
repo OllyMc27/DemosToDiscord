@@ -8,17 +8,11 @@
 		<LangVersion>Latest</LangVersion>
 		<Configurations>Debug;Release;Prerelease</Configurations>
 		<CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
-		<Version>2.3.2</Version>
+		<Version>2.3.3</Version>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="RaidMax.IW4MAdmin.SharedLibraryCore" Version="2026.1.6.1" PrivateAssets="All" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-			<_Parameter1>DemosToDiscord.Tests</_Parameter1>
-		</AssemblyAttribute>
 	</ItemGroup>
 
 </Project>
