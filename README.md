@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/github/license/OllyMc27/DemosToDiscord?style=flat-square)](LICENSE)
 
 # DemosToDiscord
-## Turn reports and unusual statistics into review-ready evidence
+### A plugin for IW4MAdmin - Turn reports and unusual statistics into review-ready evidence.
 
 DemosToDiscord connects [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin), Plutonium demos and Discord. It finds the right match recording, groups the surrounding evidence into one case and gives moderators a purpose-built review workflow inside the IW4MAdmin webfront. Version 2.4 also watches the statistics IW4MAdmin already records and can surface unusually strong player profiles for human review—without issuing automatic penalties.
 
