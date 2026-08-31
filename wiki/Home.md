@@ -4,7 +4,7 @@ DemosToDiscord is an IW4MAdmin plugin that turns player reports, anti-cheat bans
 
 This Wiki covers DemosToDiscord 2.4.x.
 
-![DemosToDiscord evidence queue](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-evidence-queue.png)
+![DemosToDiscord evidence queue](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-v2-4-overview.png)
 
 ## Start here
 

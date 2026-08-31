@@ -15,7 +15,7 @@ The compact overview provides four status queues without immediately loading eve
 
 Cases remain visible when demos are unsupported or missing.
 
-![Cheating Case Review overview with compact status and utility queues](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-evidence-queue.png)
+![Cheating Case Review overview with compact status and utility queues](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-v2-4-overview.png)
 
 ## Case browser and filters
 
@@ -34,7 +34,7 @@ The case header shows:
 
 The profile link opens IW4MAdmin's normal client profile.
 
-![Structured evidence case review](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-case-review.png)
+![Structured evidence case review](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-v2-4-case-review.png)
 
 ## Demo evidence
 
@@ -63,7 +63,7 @@ The page can show aggregate kills, deaths, K/D, performance, score per minute, p
 
 Automated-ban cases can also show case-specific anti-cheat snapshots. Metrics provide context, not a verdict; always review the available demo and surrounding evidence.
 
-![Match timeline, reports and player anti-cheat metrics](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-timeline-metrics.png)
+![Match timeline, reports and player anti-cheat metrics](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-v2-4-timeline-metrics.png)
 
 ## Proactive statistical analysis
 

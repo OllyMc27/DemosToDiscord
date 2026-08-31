@@ -6,19 +6,19 @@ These publication screenshots show the complete DemosToDiscord workflow. Player,
 
 Start from compact status and utility queues. Retained cases stay out of the way until a moderator chooses a queue; search and advanced filters are available on demand.
 
-![Cheating Case Review overview with compact status and utility queues](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-evidence-queue.png)
+![Cheating Case Review overview with compact status and utility queues](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-v2-4-overview.png)
 
 ## Structured case review
 
 Bring friendly/raw match context, reports, decision, notes, original evidence, Owner tools and native IW4MAdmin player actions together.
 
-![Structured evidence case review](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-case-review.png)
+![Structured evidence case review](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-v2-4-case-review.png)
 
 ## Timeline and metrics
 
 Use report offsets to jump to the relevant moment, with player, anti-cheat and proactive signal context alongside the timeline.
 
-![Match timeline, reports and anti-cheat metrics](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-timeline-metrics.png)
+![Match timeline, reports and anti-cheat metrics](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-v2-4-timeline-metrics.png)
 
 ## Proactive review delivered to Discord
 

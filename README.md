@@ -10,7 +10,7 @@ DemosToDiscord connects [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin), Plut
 
 [Download the latest release](https://github.com/OllyMc27/DemosToDiscord/releases/latest) · [Installation guide](https://github.com/OllyMc27/DemosToDiscord/wiki/Installation-and-Upgrades) · [Complete Wiki](https://github.com/OllyMc27/DemosToDiscord/wiki)
 
-![DemosToDiscord evidence queue](docs/images/webfront-evidence-queue.png)
+![DemosToDiscord evidence queue](docs/images/webfront-v2-4-overview.png)
 
 ### One clean moderation workspace
 
@@ -37,13 +37,13 @@ DemosToDiscord builds conservative, server-aware baselines from the live IW4MAdm
 
 ## Everything needed to make a decision
 
-![Structured evidence case review](docs/images/webfront-case-review.png)
+![Structured evidence case review](docs/images/webfront-v2-4-case-review.png)
 
 Each case brings together the original demo, T6 JSON metadata, friendly and raw map/mode names, server context, reports, review notes and IW4MAdmin's native player actions. Moderators can assign work, ban, kick, flag, add notes, clear only the attached reports and record a final outcome without leaving the page. Owners also have a separately confirmed test/maintenance tool for permanently deleting a case.
 
 ## Jump straight to the useful moment
 
-![Match timeline and anti-cheat metrics](docs/images/webfront-timeline-metrics.png)
+![Match timeline and anti-cheat metrics](docs/images/webfront-v2-4-timeline-metrics.png)
 
 The match timeline shows when recording began, when the player joined, every report or anti-cheat event and when the player left—including the offset into the demo. Player statistics, anti-cheat metrics and proactive signal explanations sit alongside the timeline as context for the review.
 
