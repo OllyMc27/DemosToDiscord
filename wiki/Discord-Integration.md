@@ -58,7 +58,7 @@ A message can include:
 - reports or anti-cheat detection;
 - direct case and player-profile links.
 
-![Discord evidence message with original demo, JSON metadata and case links](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-evidence-ready.png)
+![Completed report evidence review with demo, timeline and case links](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-report-review.png)
 
 ## Attachments
 
@@ -89,6 +89,8 @@ Proactive cases are posted only when all three conditions are true:
 
 The message identifies the case as proactive, shows the explainable risk score/signals and links to normal human review. It never announces that the player is definitively cheating and never applies a penalty. See [[Proactive Detection|Proactive-Detection]].
 
+![Explainable proactive statistical review in Discord](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-proactive-review.png)
+
 ## Case and profile links
 
 Set IW4MAdmin's `Webfront.ManualUrl` to the public webfront address. Without it, Discord cannot construct a usable external review URL.
@@ -98,8 +100,6 @@ The embed title and **Review evidence case** link open the case. **Open player p
 ## Message updates
 
 When a case is assigned or reviewed, DemosToDiscord edits the original message rather than sending a duplicate. Existing demo/JSON attachments remain attached.
-
-![Completed review reflected in the original Discord evidence message](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-review-completed.png)
 
 ## CDN download links
 

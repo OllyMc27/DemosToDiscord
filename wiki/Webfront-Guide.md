@@ -15,7 +15,7 @@ The compact overview provides four status queues without immediately loading eve
 
 Cases remain visible when demos are unsupported or missing.
 
-![Evidence queue with search, filters and mixed evidence states](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-evidence-queue.png)
+![Cheating Case Review overview with compact status and utility queues](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-evidence-queue.png)
 
 ## Case browser and filters
 
@@ -99,8 +99,6 @@ Owners also see **Delete case permanently**. Deletion requires confirmation and 
 ## Metadata-only cases
 
 T4, IW5, T5 Zombies and explicitly unsupported servers retain the same review controls even when no demo can be recorded. The case explains the capability limitation while preserving reports, metrics, assignment, decisions and activity.
-
-![Metadata-only evidence case with complete review controls](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-metadata-only.png)
 
 ## Other evidence and activity
 

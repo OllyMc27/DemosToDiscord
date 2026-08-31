@@ -6,7 +6,7 @@ These publication screenshots show the complete DemosToDiscord workflow. Player,
 
 Start from compact status and utility queues. Retained cases stay out of the way until a moderator chooses a queue; search and advanced filters are available on demand.
 
-![Evidence queue with search, filters and mixed evidence states](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-evidence-queue.png)
+![Cheating Case Review overview with compact status and utility queues](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-evidence-queue.png)
 
 ## Structured case review
 
@@ -20,22 +20,20 @@ Use report offsets to jump to the relevant moment, with player, anti-cheat and p
 
 ![Match timeline, reports and anti-cheat metrics](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-timeline-metrics.png)
 
-## Metadata-only evidence
+## Proactive review delivered to Discord
 
-T4, IW5 and T5 Zombies reports remain assignable and reviewable even though no demo can be recorded.
+Proactive statistical cases explain the score, any qualifying indicators and the human-review requirement without issuing a punishment. This diagnostic example shows how a normal assessment is explained when testing with a deliberately low case threshold.
 
-![Metadata-only evidence case](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-metadata-only.png)
+![Proactive statistical review in Discord](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-proactive-review.png)
 
-## Evidence delivered to Discord
+## Report evidence delivered to Discord
 
 The original demo and T6 JSON metadata arrive with match context, report offsets and direct webfront links.
 
-![Discord evidence ready for review](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-evidence-ready.png)
+![Completed report evidence review](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-report-review.png)
 
 ## Review lifecycle
 
-Assignment and review changes update the original Discord message while its evidence remains attached.
-
-![Completed review reflected in Discord](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-review-completed.png)
+Assignment and review changes update the original Discord message while its evidence remains attached, as shown in the report-evidence example above.
 
 Continue with [[Webfront Guide|Webfront-Guide]], [[Discord Integration|Discord-Integration]] or [[Evidence Workflow|Evidence-Workflow]].

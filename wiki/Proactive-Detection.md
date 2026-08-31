@@ -56,6 +56,8 @@ Every proactive option and exclusion is listed in [[Configuration]].
 
 A proactive case names each indicator that crossed the statistical floor, shows its observed value and comparable percentile, and explains why it contributed. The case also includes available match evidence, friendly and raw map/mode names, player metrics, assignments, notes and the normal decision controls.
 
+![Proactive statistical review delivered to Discord](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-proactive-review.png)
+
 If no indicator qualifies, there is no useful signal breakdown to display and, at production thresholds, no case is retained. Existing report/ban cases do not gain a retrospective proactive assessment.
 
 ## Confirm that it is running

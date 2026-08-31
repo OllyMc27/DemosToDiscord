@@ -33,6 +33,8 @@ DemosToDiscord builds conservative, server-aware baselines from the live IW4MAdm
 
 [Read how proactive detection works](https://github.com/OllyMc27/DemosToDiscord/wiki/Proactive-Detection)
 
+![Explainable proactive statistical review in Discord](docs/images/discord-proactive-review.png)
+
 ## Everything needed to make a decision
 
 ![Structured evidence case review](docs/images/webfront-case-review.png)
@@ -47,7 +49,7 @@ The match timeline shows when recording began, when the player joined, every rep
 
 ## Discord evidence that stays in sync
 
-![Completed evidence review in Discord](docs/images/discord-review-completed.png)
+![Completed report evidence review in Discord](docs/images/discord-report-review.png)
 
 - Uploads the original `.demo` directly—no ZIP archive and no renamed theatre file.
 - Includes the T6 `.json` metadata sidecar when available.
@@ -57,8 +59,6 @@ The match timeline shows when recording began, when the player joined, every rep
 - Supports global, per-game and per-server webhooks with optional role mentions.
 
 ## No demo support does not mean a lost report
-
-![Metadata-only evidence case](docs/images/webfront-metadata-only.png)
 
 T4, IW5 and T5 Zombies reports remain fully actionable metadata-only cases. Administrators still get the report, player context, statistics, assignment, review controls and audit trail, with a clear explanation that recording is unsupported.
 
