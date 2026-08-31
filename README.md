@@ -1,10 +1,6 @@
-# DemosToDiscord
+# DemosToDiscord [![Release](https://img.shields.io/github/v/release/OllyMc27/DemosToDiscord?style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/releases/latest) [![License](https://img.shields.io/github/license/OllyMc27/DemosToDiscord?style=flat-square)](LICENSE) [![Build](https://img.shields.io/github/actions/workflow/status/OllyMc27/DemosToDiscord/ci.yml?branch=master&style=flat-square&label=build)](https://github.com/OllyMc27/DemosToDiscord/actions/workflows/ci.yml) [![Downloads](https://img.shields.io/github/downloads/OllyMc27/DemosToDiscord/total?style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/releases) [![Stars](https://img.shields.io/github/stars/OllyMc27/DemosToDiscord?style=flat-square&logo=github)](https://github.com/OllyMc27/DemosToDiscord/stargazers)
 
 ### Turn player reports and unusual statistics into review-ready evidence for IW4MAdmin.
-
-[![Release](https://img.shields.io/github/v/release/OllyMc27/DemosToDiscord?style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/OllyMc27/DemosToDiscord/ci.yml?branch=master&style=flat-square)](https://github.com/OllyMc27/DemosToDiscord/actions)
-[![License](https://img.shields.io/github/license/OllyMc27/DemosToDiscord?style=flat-square)](LICENSE)
 
 DemosToDiscord connects [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin), Plutonium match recordings and Discord. It finds the relevant demo, groups reports and detections into one case, and gives moderators a focused review workflow inside the IW4MAdmin webfront.
 
