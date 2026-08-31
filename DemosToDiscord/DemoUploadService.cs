@@ -183,6 +183,16 @@ public sealed class DemoUploadService : IDisposable
         return true;
     }
 
+    public async Task QueueCaseAsync(string caseId, CancellationToken token)
+    {
+        await _store.UpdateAsync(caseId, item =>
+        {
+            item.Status = EvidenceCaseStatus.Queued;
+            item.LastError = null;
+        }, token);
+        await _queue.Writer.WriteAsync(caseId, token);
+    }
+
     public Task TestWebhookAsync(CancellationToken token)
     {
         if (string.IsNullOrWhiteSpace(_config.Webhook))
@@ -229,6 +239,8 @@ public sealed class DemoUploadService : IDisposable
             if (!capability.Supported)
             {
                 evidenceCase = await EnrichCaseAsync(caseId, null, token);
+                if (!evidenceCase.DiscordEligible)
+                    return;
                 if (!ShouldSendMetadataOnly(evidenceCase))
                 {
                     await _store.UpdateAsync(caseId, item =>
@@ -262,7 +274,7 @@ public sealed class DemoUploadService : IDisposable
             }
 
             var webhook = ResolveWebhook(evidenceCase);
-            if (string.IsNullOrWhiteSpace(webhook))
+            if (evidenceCase.DiscordEligible && string.IsNullOrWhiteSpace(webhook))
                 throw new InvalidOperationException("No Discord webhook is configured for this server.");
 
             var folder = ResolveDemoFolder(evidenceCase);
@@ -278,6 +290,11 @@ public sealed class DemoUploadService : IDisposable
             if (candidate is null)
             {
                 evidenceCase = await EnrichCaseAsync(caseId, null, token);
+                if (!evidenceCase.DiscordEligible)
+                {
+                    await _store.UpdateAsync(caseId, item => item.Status = EvidenceCaseStatus.NoDemo, token);
+                    return;
+                }
                 var receipt = await _discord.SendCaseAsync(
                     evidenceCase,
                     webhook,
@@ -298,6 +315,11 @@ public sealed class DemoUploadService : IDisposable
 
             await _store.UpdateAsync(caseId, item => item.Status = EvidenceCaseStatus.Uploading, token);
             evidenceCase = await EnrichCaseAsync(caseId, candidate, token);
+            if (!evidenceCase.DiscordEligible)
+            {
+                await _store.UpdateAsync(caseId, item => item.Status = EvidenceCaseStatus.DemoReady, token);
+                return;
+            }
             var receiptWithDemo = await _discord.SendCaseAsync(
                 evidenceCase,
                 webhook,

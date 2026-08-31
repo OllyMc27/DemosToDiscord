@@ -66,13 +66,36 @@ The paths must belong to the Windows account that records the demos. A service a
 
 | Setting | Type | Default | Accepted values and behaviour |
 |---|---|---|---|
-| `EnableWebfrontDashboard` | Boolean | `true` | Registers **Admin → Demo Evidence**. |
+| `EnableWebfrontDashboard` | Boolean | `true` | Registers **Admin → Cheating Case Review**. |
 | `WebfrontMinimumPermission` | Permission name | `Moderator` | Valid IW4MAdmin permission, normally `Moderator`, `Administrator`, `SeniorAdmin` or `Owner`. |
 | `StoreReportReasons` | Boolean | `true` | `false` prevents the original report text being retained. |
-| `CaseRetentionDays` | Integer | `90` | Cases older than this are pruned. Positive value. |
-| `MaxStoredCases` | Integer | `500` | Maximum retained cases; oldest are removed first. Positive value. |
+| `CaseRetentionDays` | Integer | `90` | Standard cases older than this are pruned. **Cheating — action taken** cases are permanent unless an Owner deletes them. Positive value. |
+| `MaxStoredCases` | Integer | `500` | Target collection size. Oldest non-permanent cases are removed first; protected confirmed-cheating cases can make the total exceed this value. Positive value. |
 | `StateFilePath` | String | `Configuration/DemosToDiscordCases.json` | Absolute path or path relative to IW4MAdmin. |
 | `TimeZone` | String | `Europe/London` | IANA timezone used for webfront and Discord. See [Language and Timezones](Language-and-Timezones). |
+
+### Proactive statistical review
+
+These settings control human-review suggestions built from IW4MAdmin's existing statistics. They never enable automatic punishment. See [[Proactive Detection|Proactive-Detection]] before tuning thresholds.
+
+| Setting | Type | Default | Accepted values and behaviour |
+|---|---|---:|---|
+| `EnableProactiveDetection` | Boolean | `true` | Evaluates eligible real-player sessions after disconnect/match end. |
+| `ProactiveBaselineRefreshMinutes` | Integer | `5` | Minutes between live database baseline refreshes. Positive value. |
+| `ProactiveBaselineStateFilePath` | String | `Configuration/DemosToDiscordProactiveBaselines.json` | Rebuildable aggregate baseline cache path. |
+| `ProactiveMinimumPopulation` | Integer | `100` | Minimum comparable player/server population before scoring. |
+| `ProactiveMinimumTrackedHits` | Integer | `200` | Player tracked-hit sample required for hit-location/mechanics signals. |
+| `ProactiveMinimumHeadEvents` | Integer | `10` | Minimum player head events required before head-rate signals contribute. |
+| `ProactiveExcludedGames` | String array | `[]` | Game codes never evaluated, for example `[ "T5" ]`. |
+| `ProactiveExcludedServerIds` | Integer array | `[]` | IW4MAdmin server IDs never evaluated. |
+| `ProactiveExcludeT5Zombies` | Boolean | `true` | Keeps the non-comparable Zombies population out of proactive review. |
+| `ProactiveCaseRiskThreshold` | Integer | `50` | Minimum 0–100 score retained as a case. Recommended production default: `50`. |
+| `ProactiveDiscordRiskThreshold` | Integer | `65` | Minimum score posted to Discord when notifications are enabled. |
+| `EnableProactiveDiscordNotifications` | Boolean | `true` | Sends qualifying retained proactive cases to Discord. |
+| `ProactiveRepeatHistoryWeight` | Integer | `4` | Maximum extra weight contributed by earlier proactive case history. |
+| `ProactiveEvaluationDelaySeconds` | Integer | `20` | Wait after session completion before reading final statistics. |
+| `ProactiveEvaluationDeduplicationMinutes` | Integer | `30` | Suppresses repeated evaluation of the same player/server session window. |
+| `ProactiveEvaluationQueueCapacity` | Integer | `1000` | Maximum pending background evaluations; keep comfortably above peak disconnect volume. |
 
 ### Discord delivery
 
@@ -133,6 +156,22 @@ Webhook selection: server override → `GameWebhooks` → default `Webhook`.
   "MaxStoredCases": 500,
   "StateFilePath": "Configuration/DemosToDiscordCases.json",
   "TimeZone": "Europe/London",
+  "EnableProactiveDetection": true,
+  "ProactiveBaselineRefreshMinutes": 5,
+  "ProactiveBaselineStateFilePath": "Configuration/DemosToDiscordProactiveBaselines.json",
+  "ProactiveMinimumPopulation": 100,
+  "ProactiveMinimumTrackedHits": 200,
+  "ProactiveMinimumHeadEvents": 10,
+  "ProactiveExcludedGames": [],
+  "ProactiveExcludedServerIds": [],
+  "ProactiveExcludeT5Zombies": true,
+  "ProactiveCaseRiskThreshold": 50,
+  "ProactiveDiscordRiskThreshold": 65,
+  "EnableProactiveDiscordNotifications": true,
+  "ProactiveRepeatHistoryWeight": 4,
+  "ProactiveEvaluationDelaySeconds": 20,
+  "ProactiveEvaluationDeduplicationMinutes": 30,
+  "ProactiveEvaluationQueueCapacity": 1000,
   "SendMetadataOnlyCasesToDiscord": true,
   "ReportRoleId": "",
   "AntiCheatRoleId": "",
@@ -218,6 +257,24 @@ Use numeric role IDs, not `@Role Name`. The webhook must be allowed to mention t
 "UploadOnReports": true,
 "UploadOnAutomatedBans": false,
 "UploadOnManualBans": false
+```
+
+To disable proactive cases as well, also set `"EnableProactiveDetection": false`.
+
+### Exclude a game or server from proactive review
+
+```json
+"ProactiveExcludedGames": [ "T5" ],
+"ProactiveExcludedServerIds": [ 12, 27 ]
+```
+
+Server IDs are IW4MAdmin's numeric server database IDs, not endpoint ports.
+
+### Quiet proactive Discord without disabling web cases
+
+```json
+"EnableProactiveDetection": true,
+"EnableProactiveDiscordNotifications": false
 ```
 
 ### Temporary demo diagnostics

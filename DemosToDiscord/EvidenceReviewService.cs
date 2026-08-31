@@ -17,6 +17,45 @@ public sealed class EvidenceReviewService(
     DemoUploadService uploadService,
     ILogger<EvidenceReviewService> logger)
 {
+    public async Task<bool> CanDeleteAsync(int originId)
+    {
+        var manager = serviceProvider.GetRequiredService<IManager>();
+        var origin = await manager.GetClientService().Get(originId);
+        return origin?.Level >= EFClient.Permission.Owner;
+    }
+
+    public async Task<string> DeleteAsync(
+        int originId,
+        int? targetId,
+        IDictionary<string, string> input,
+        CancellationToken token)
+    {
+        var manager = serviceProvider.GetRequiredService<IManager>();
+        var origin = await manager.GetClientService().Get(originId)
+                     ?? throw new UnauthorizedAccessException("The administrator could not be resolved.");
+        if (origin.Level < EFClient.Permission.Owner)
+            throw new UnauthorizedAccessException("Owner permission is required to delete evidence cases.");
+
+        if (!input.TryGetValue("CaseId", out var caseId) || string.IsNullOrWhiteSpace(caseId))
+            throw new ArgumentException("Evidence case ID is required.");
+        var evidenceCase = store.Get(caseId) ?? throw new ArgumentException($"Evidence case {caseId} was not found.");
+        if (targetId is not null && targetId != evidenceCase.TargetClientId)
+            throw new UnauthorizedAccessException("The requested target does not match the evidence case.");
+        if (!input.TryGetValue("ConfirmDelete", out var confirmation) ||
+            !bool.TryParse(confirmation, out var confirmed) || !confirmed)
+        {
+            throw new ArgumentException("Confirm permanent deletion before continuing.");
+        }
+
+        if (!await store.DeleteAsync(caseId, token))
+            throw new ArgumentException($"Evidence case {caseId} was not found.");
+
+        logger.LogWarning(
+            "[DemosToDiscord] Case {CaseId} permanently deleted by Owner {OwnerId}",
+            caseId, origin.ClientId);
+        return "Evidence case permanently deleted. Player penalties and Discord messages were not changed.";
+    }
+
     public async Task<string> ExecuteAsync(
         int originId,
         int? targetId,

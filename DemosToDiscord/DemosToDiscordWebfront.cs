@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using SharedLibraryCore;
 using SharedLibraryCore.Helpers;
 using SharedLibraryCore.Interfaces;
 
@@ -11,15 +12,20 @@ public sealed class DemosToDiscordWebfront : IDisposable
 {
     public const string InteractionKey = "Webfront::Nav::Admin::DemosToDiscord";
     public const string ReviewInteractionKey = "DemosToDiscord::ReviewCase";
+    public const string DeleteInteractionKey = "DemosToDiscord::DeleteCase";
     private const string WideStyles = """
         <style>
+          .max-w-7xl:has(.dtd-workspace)>div.flex.items-center.gap-3.mb-8{display:none}
           .dtd-identity-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.75rem}
+          .dtd-status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem}
+          .dtd-status-card{min-height:5.25rem}
           .dtd-case-row{display:grid;grid-template-columns:minmax(0,2fr) minmax(13rem,1fr) auto;gap:1rem;align-items:center}
           .dtd-detail-layout{display:grid;grid-template-columns:minmax(0,1fr) 18rem;gap:1.25rem;align-items:start}
           .dtd-evidence-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(16rem,.85fr);gap:1.25rem;align-items:start}
           .dtd-actions{position:sticky;top:1.5rem}
           @media (min-width:1280px){.dtd-workspace{width:min(1600px,calc(100vw - 19rem));position:relative;left:50%;transform:translateX(-50%)}}
-          @media (max-width:1023px){.dtd-case-row,.dtd-detail-layout,.dtd-evidence-grid{grid-template-columns:1fr}.dtd-actions{position:static}}
+          @media (max-width:1023px){.dtd-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dtd-case-row,.dtd-detail-layout,.dtd-evidence-grid{grid-template-columns:1fr}.dtd-actions{position:static}}
+          @media (max-width:560px){.dtd-status-grid{grid-template-columns:1fr}}
           @media (max-width:767px){.dtd-overview-metric:nth-child(2n){border-right:0}.dtd-overview-metric:nth-child(-n+2){border-bottom:1px solid var(--color-line)}}
         </style>
         """;
@@ -32,6 +38,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
     private readonly PlayerTimelineService _timeline;
     private readonly DiscordWebhookClient _discord;
     private readonly EvidenceReviewService _reviewService;
+    private readonly FriendlyGameNames _friendlyNames;
     private bool _disposed;
 
     public DemosToDiscordWebfront(
@@ -42,7 +49,8 @@ public sealed class DemosToDiscordWebfront : IDisposable
         AntiCheatMetricsService metrics,
         PlayerTimelineService timeline,
         DiscordWebhookClient discord,
-        EvidenceReviewService reviewService)
+        EvidenceReviewService reviewService,
+        FriendlyGameNames friendlyNames)
     {
         _interactions = interactions;
         _configurationHandler = configurationHandler;
@@ -52,6 +60,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         _timeline = timeline;
         _discord = discord;
         _reviewService = reviewService;
+        _friendlyNames = friendlyNames;
         _configurationHandler.Updated += OnConfigurationUpdated;
     }
 
@@ -59,6 +68,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
     {
         _interactions.UnregisterInteraction(InteractionKey);
         _interactions.UnregisterInteraction(ReviewInteractionKey);
+        _interactions.UnregisterInteraction(DeleteInteractionKey);
 
         if (_config.EnableWebfrontDashboard)
         {
@@ -67,8 +77,8 @@ public sealed class DemosToDiscordWebfront : IDisposable
                 var interaction = new InteractionData
                 {
                     Enabled = true,
-                    Name = "Demo Evidence",
-                    Description = "Review reports, player metrics, anti-cheat evidence and demos",
+                    Name = "Cheating Case Review",
+                    Description = "Review reports, detections and match evidence",
                     DisplayMeta = "ph-film-strip",
                     InteractionId = InteractionKey,
                     MinimumPermission = _config.WebfrontMinimumPermission,
@@ -101,12 +111,32 @@ public sealed class DemosToDiscordWebfront : IDisposable
             };
             return Task.FromResult<IInteractionData>(interaction);
         });
+
+        _interactions.RegisterInteraction(DeleteInteractionKey, (_, _, _) =>
+        {
+            var interaction = new InteractionData
+            {
+                Enabled = true,
+                Name = "Delete evidence case",
+                Description = "Permanently delete retained evidence case metadata",
+                DisplayMeta = "ph-trash",
+                InteractionId = DeleteInteractionKey,
+                MinimumPermission = Data.Models.Client.EFClient.Permission.Owner,
+                InteractionType = InteractionType.ActionButton,
+                Source = "DemosToDiscord",
+                PermissionEntity = "Interaction",
+                PermissionAccess = "Write",
+                Action = (originId, targetId, _, meta, token) =>
+                    _reviewService.DeleteAsync(originId, targetId, meta, token)
+            };
+            return Task.FromResult<IInteractionData>(interaction);
+        });
     }
 
     private async Task<string> RenderAsync(int originId, IDictionary<string, string> meta, CancellationToken token)
     {
         if (meta.TryGetValue("case", out var caseId) && !string.IsNullOrWhiteSpace(caseId))
-            return await RenderCaseAsync(caseId, token);
+            return await RenderCaseAsync(originId, caseId, token);
         return RenderDashboard(_service.GetSnapshot(), originId, meta);
     }
 
@@ -114,61 +144,76 @@ public sealed class DemosToDiscordWebfront : IDisposable
     {
         meta.TryGetValue("view", out var requestedView);
         var view = NormalizeView(requestedView);
+        var isSummary = view == "summary";
         var awaitingReview = snapshot.Cases.Count(item => item.ReviewDecision == EvidenceReviewDecision.Unreviewed);
         var confirmedCheating = snapshot.Cases.Count(item => item.ReviewDecision is
             EvidenceReviewDecision.CheatingActionTaken or EvidenceReviewDecision.CheatingNoAction);
         var cleared = snapshot.Cases.Count(item => item.ReviewDecision == EvidenceReviewDecision.NotCheatingNoAction);
         var followUp = snapshot.Cases.Count(item => item.ReviewDecision is
             EvidenceReviewDecision.NeedsMoreReview or EvidenceReviewDecision.Inconclusive);
-        var cases = FilterCases(snapshot.Cases, view, originId, meta).Take(100).ToList();
+        var unassigned = snapshot.Cases.Count(item => item.AssignedToClientId is null);
+        var mine = snapshot.Cases.Count(item => item.AssignedToClientId == originId);
         var builder = new StringBuilder(WideStyles);
-        builder.Append("<div class=\"dtd-workspace space-y-5\">")
-            .Append("<section class=\"overflow-hidden rounded-xl border border-line bg-surface shadow-sm\">")
-            .Append("<div class=\"flex flex-col gap-4 border-b border-line px-5 pt-5 pb-8 md:flex-row md:items-center md:justify-between md:px-6\"><div><h3 class=\"text-lg font-semibold text-foreground\">Evidence queue</h3><p class=\"mt-1 text-sm text-muted\">Reports and automated detections grouped by player and match.</p></div>")
-            .Append($"<a data-enhance-nav=\"false\" class=\"inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface-alt px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover\" href=\"{OverviewUrl(view)}\"><i class=\"ph ph-arrow-clockwise\"></i>Refresh</a></div>")
-            .Append("<div class=\"grid grid-cols-2 border-b border-line md:grid-cols-4\">")
-            .Append(OverviewMetric("Awaiting", awaitingReview, "ph-hourglass", "text-amber-400", "awaiting", view))
-            .Append(OverviewMetric("Confirmed", confirmedCheating, "ph-shield-warning", "text-red-400", "cheating", view))
-            .Append(OverviewMetric("Cleared", cleared, "ph-check-circle", "text-emerald-400", "cleared", view))
-            .Append(OverviewMetric("Follow-up", followUp, "ph-magnifying-glass", "text-primary", "followup", view))
-            .Append("</div>")
-            .Append("<nav class=\"flex gap-1 overflow-x-auto border-b border-line bg-surface-alt/30 px-4 py-2\" aria-label=\"Evidence filters\">")
-            .Append(FilterLink("All cases", "all", view, snapshot.Cases.Count))
-            .Append(FilterLink("Awaiting", "awaiting", view, awaitingReview))
-            .Append(FilterLink("Processing", "processing", view, snapshot.Queued))
-            .Append(FilterLink("Follow-up", "followup", view, followUp))
-            .Append(FilterLink("Cheating", "cheating", view, confirmedCheating))
-            .Append(FilterLink("Cleared", "cleared", view, cleared))
-            .Append(FilterLink("Failed", "failed", view, snapshot.Failed))
-            .Append(FilterLink("Unassigned", "unassigned", view, snapshot.Cases.Count(item => item.AssignedToClientId is null)))
-            .Append(FilterLink("Assigned to me", "mine", view, snapshot.Cases.Count(item => item.AssignedToClientId == originId)))
-            .Append("</nav>")
-            .Append(SearchFilters(meta, view, snapshot.Cases))
-            .Append("<div class=\"divide-y divide-line\">");
+        builder.Append("<div class=\"dtd-workspace space-y-5\"><section class=\"rounded-xl border border-line bg-surface p-5 shadow-sm md:p-6\"><div class=\"flex flex-col gap-4 md:flex-row md:items-center md:justify-between\"><div><div class=\"text-xs font-semibold uppercase tracking-wider text-primary\">Moderation workspace</div><h2 class=\"mt-1 text-2xl font-bold text-foreground\">Cheating Case Review</h2><p class=\"mt-1 max-w-3xl text-sm text-muted\">Triage player reports, statistical detections, anti-cheat events and match demos from one review queue.</p></div>")
+            .Append($"<a data-enhance-nav=\"false\" class=\"inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface-alt px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover\" href=\"{OverviewUrl(view)}\"><i class=\"ph ph-arrow-clockwise\"></i>Refresh</a></div></section>")
+            .Append("<section class=\"dtd-status-grid\">")
+            .Append(DashboardCard("Awaiting review", awaitingReview, "Cases requiring an administrator decision", "ph-hourglass", "text-amber-400", "awaiting"))
+            .Append(DashboardCard("Needs follow-up", followUp, "Inconclusive cases and further review", "ph-magnifying-glass", "text-primary", "followup"))
+            .Append(DashboardCard("Confirmed cheating", confirmedCheating, "Completed cheating determinations", "ph-shield-warning", "text-red-400", "cheating"))
+            .Append(DashboardCard("Cleared", cleared, "Reviewed with no cheating action", "ph-check-circle", "text-emerald-400", "cleared"))
+            .Append("</section>");
 
-        if (cases.Count == 0)
+        if (isSummary)
         {
-            builder.Append("<div class=\"flex flex-col items-center justify-center px-6 py-16 text-center\"><div class=\"mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-surface-alt\"><i class=\"ph ph-check-circle text-3xl text-muted\"></i></div><h4 class=\"font-medium text-foreground\">No cases in this view</h4><p class=\"mt-1 text-sm text-muted\">Try another filter or wait for new evidence.</p></div>");
+            builder.Append("<section class=\"overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"border-b border-line px-5 py-4\"><h3 class=\"font-semibold text-foreground\">Open a case queue</h3><p class=\"mt-1 text-sm text-muted\">Cases stay hidden on this overview until you select the queue you want to work on.</p></div><div class=\"grid gap-px bg-line sm:grid-cols-2 lg:grid-cols-3\">")
+                .Append(QueueShortcut("All retained cases", snapshot.Cases.Count, "ph-files", "all"))
+                .Append(QueueShortcut("Assigned to me", mine, "ph-user-focus", "mine"))
+                .Append(QueueShortcut("Unassigned", unassigned, "ph-user-minus", "unassigned"))
+                .Append(QueueShortcut("Evidence processing", snapshot.Queued, "ph-spinner-gap", "processing"))
+                .Append(QueueShortcut("Failed or missing", snapshot.Failed + snapshot.NoDemo, "ph-warning", "failed"))
+                .Append(QueueShortcut("Uploaded demos", snapshot.Uploaded, "ph-cloud-check", "all", "demo=uploaded"))
+                .Append("</div></section>");
         }
         else
         {
-            foreach (var item in cases)
-                builder.Append(OverviewCaseRow(item));
+            var cases = FilterCases(snapshot.Cases, view, originId, meta).Take(100).ToList();
+            builder.Append("<section class=\"overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"flex flex-col gap-3 border-b border-line px-5 py-4 md:flex-row md:items-center md:justify-between\"><div class=\"flex items-center gap-3\">")
+                .Append($"<a data-enhance-nav=\"false\" href=\"{OverviewUrl("summary")}\" class=\"flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface-alt text-muted hover:bg-surface-hover hover:text-foreground\" title=\"Back to overview\"><i class=\"ph ph-arrow-left\"></i></a><div><h3 class=\"font-semibold text-foreground\">{Encode(ViewTitle(view))}</h3><p class=\"text-sm text-muted\">Search, filter and open the cases in this queue.</p></div></div><span class=\"text-sm font-medium text-muted\">{cases.Count:N0} shown</span></div>")
+                .Append("<nav class=\"flex gap-1 overflow-x-auto border-b border-line bg-surface-alt/30 px-4 py-2\" aria-label=\"Case queues\">")
+                .Append(FilterLink("All", "all", view, snapshot.Cases.Count))
+                .Append(FilterLink("Awaiting", "awaiting", view, awaitingReview))
+                .Append(FilterLink("Processing", "processing", view, snapshot.Queued))
+                .Append(FilterLink("Follow-up", "followup", view, followUp))
+                .Append(FilterLink("Cheating", "cheating", view, confirmedCheating))
+                .Append(FilterLink("Cleared", "cleared", view, cleared))
+                .Append(FilterLink("Failed", "failed", view, snapshot.Failed + snapshot.NoDemo))
+                .Append(FilterLink("Unassigned", "unassigned", view, unassigned))
+                .Append(FilterLink("Mine", "mine", view, mine))
+                .Append("</nav>")
+                .Append(CollapsibleFilters(meta, view, snapshot.Cases))
+                .Append("<div class=\"divide-y divide-line\">");
+
+            if (cases.Count == 0)
+                builder.Append("<div class=\"flex flex-col items-center justify-center px-6 py-14 text-center\"><div class=\"mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-alt\"><i class=\"ph ph-check-circle text-2xl text-muted\"></i></div><h4 class=\"font-medium text-foreground\">No matching cases</h4><p class=\"mt-1 text-sm text-muted\">Try another queue or clear the search filters.</p></div>");
+            else
+                foreach (var item in cases)
+                    builder.Append(OverviewCaseRow(item));
+
+            builder.Append("</div><div class=\"flex flex-col gap-2 border-t border-line bg-surface-alt/20 px-5 py-3 text-xs text-muted md:flex-row md:items-center md:justify-between\">")
+                .Append($"<span>Showing {cases.Count:N0} of {snapshot.Cases.Count:N0} retained cases</span><span>{snapshot.Uploaded:N0} uploaded · {snapshot.Unsupported:N0} metadata-only · {snapshot.NoDemo:N0} demo missing · {snapshot.Failed:N0} failed</span></div></section>");
         }
 
-        builder.Append("</div><div class=\"flex flex-col gap-2 border-t border-line bg-surface-alt/20 px-5 py-3 text-xs text-muted md:flex-row md:items-center md:justify-between\">")
-            .Append($"<span>Showing {cases.Count:N0} of {snapshot.Cases.Count:N0} retained cases</span><span>{snapshot.Uploaded:N0} uploaded · {snapshot.Unsupported:N0} metadata-only · {snapshot.NoDemo:N0} demo missing · {snapshot.Failed:N0} failed</span></div></section>")
-            .Append("<section class=\"rounded-xl border border-line bg-surface px-5 py-4 shadow-sm\"><div class=\"flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between\"><div class=\"flex items-center gap-3\"><div class=\"flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-surface-alt\"><i class=\"ph ph-gear text-lg text-primary\"></i></div><div><h3 class=\"font-medium text-foreground\">Evidence collection</h3>")
-            .Append($"<p class=\"text-sm text-muted\">Reports {(_config.UploadOnReports ? "enabled" : "disabled")} · automated bans {Encode(_config.UploadOnAutomatedBans ? string.Join(", ", _config.AutomatedBanGames) : "disabled")} · {_config.CaseRetentionDays} day retention · time zone {Encode(EvidenceTime.ConfigurationLabel)}</p></div></div>")
+        builder.Append("<section class=\"rounded-xl border border-line bg-surface px-5 py-4 shadow-sm\"><div class=\"flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between\"><div class=\"flex items-center gap-3\"><div class=\"flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-surface-alt\"><i class=\"ph ph-gear text-lg text-primary\"></i></div><div><h3 class=\"font-medium text-foreground\">Evidence collection</h3>")
+            .Append($"<p class=\"text-sm text-muted\">Reports {(_config.UploadOnReports ? "enabled" : "disabled")} · automated bans {Encode(_config.UploadOnAutomatedBans ? string.Join(", ", _config.AutomatedBanGames) : "disabled")} · {_config.CaseRetentionDays} day standard retention · confirmed cheating kept · time zone {Encode(EvidenceTime.ConfigurationLabel)}</p></div></div>")
             .Append("<a href=\"/configuration\" class=\"inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline\"><i class=\"ph ph-sliders-horizontal\"></i>Open configuration</a></div></section></div>");
         return builder.ToString();
     }
 
-    private async Task<string> RenderCaseAsync(string caseId, CancellationToken token)
+    private async Task<string> RenderCaseAsync(int originId, string caseId, CancellationToken token)
     {
         var evidenceCase = _service.GetCase(caseId);
         if (evidenceCase is null)
-            return "<div class=\"rounded-xl border border-red-500/30 bg-red-500/10 p-5 text-red-300\">Evidence case not found.</div>";
+            return WideStyles + $"<div class=\"dtd-workspace rounded-xl border border-red-500/30 bg-red-500/10 p-5 text-red-300\"><div class=\"font-semibold\">Evidence case not found.</div><a data-enhance-nav=\"false\" class=\"mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline\" href=\"{OverviewUrl("summary")}\"><i class=\"ph ph-arrow-left\"></i>Return to case review</a></div>";
 
         var metricsTask = _metrics.GetAsync(evidenceCase, token);
         var timelineTask = _timeline.GetAsync(evidenceCase, token);
@@ -185,6 +230,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         var metrics = await metricsTask;
         var timeline = await timelineTask;
         var attachments = await attachmentsTask;
+        var canDelete = await _reviewService.CanDeleteAsync(originId);
         var orderedCases = _service.GetSnapshot().Cases;
         var playerCases = orderedCases
             .Where(item => item.TargetClientId == evidenceCase.TargetClientId &&
@@ -197,7 +243,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
 
         var builder = new StringBuilder(WideStyles);
         builder.Append("<div class=\"dtd-workspace space-y-5\"><div class=\"flex flex-wrap items-center justify-between gap-3\">")
-            .Append($"<a data-enhance-nav=\"false\" class=\"inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline\" href=\"{OverviewUrl("all")}\"><i class=\"ph ph-arrow-left\"></i>Evidence queue</a>")
+            .Append($"<a data-enhance-nav=\"false\" class=\"inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline\" href=\"{OverviewUrl("summary")}\"><i class=\"ph ph-arrow-left\"></i>Case review overview</a>")
             .Append("<div class=\"flex items-center gap-2\">")
             .Append(CasePager("Newer", "ph-caret-left", newerCase))
             .Append(CasePager("Older", "ph-caret-right", olderCase))
@@ -206,7 +252,10 @@ public sealed class DemosToDiscordWebfront : IDisposable
             .Append("<div class=\"dtd-detail-layout\"><main class=\"min-w-0 space-y-5\">")
             .Append(ReviewBanner(evidenceCase))
             .Append(ReviewSummarySection(evidenceCase))
-            .Append("<section id=\"evidence\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"flex items-center justify-between gap-3 border-b border-line px-5 py-4\"><div><h3 class=\"font-semibold text-foreground\">Demo evidence</h3><p class=\"mt-0.5 text-sm text-muted\">Original match file and Discord delivery details.</p></div><i class=\"ph ph-film-strip text-2xl text-primary\"></i></div><div class=\"p-5\"><div class=\"dtd-evidence-grid\"><div class=\"min-w-0\">");
+            .Append(ProactiveAnalysisSection(evidenceCase))
+            .Append(ReportsSection(evidenceCase))
+            .Append(AntiCheatSection(evidenceCase, metrics))
+            .Append("<section id=\"evidence\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"flex items-center justify-between gap-3 border-b border-line px-5 py-4\"><div><h3 class=\"font-semibold text-foreground\">Match evidence</h3><p class=\"mt-0.5 text-sm text-muted\">Download the original demo or open its Discord evidence message.</p></div><i class=\"ph ph-film-strip text-2xl text-primary\"></i></div><div class=\"p-5\"><div class=\"dtd-evidence-grid\"><div class=\"min-w-0\">");
 
         if (attachments.Count == 0)
         {
@@ -244,11 +293,9 @@ public sealed class DemosToDiscordWebfront : IDisposable
 
         builder.Append(MatchTimelineSection(evidenceCase, timeline));
         builder.Append(PlayerMetricsSection(metrics.PlayerMetrics));
-        builder.Append(ReportsSection(evidenceCase));
-        builder.Append(AntiCheatSection(evidenceCase, metrics));
         builder.Append(PlayerHistorySection(playerCases));
         builder.Append(AuditHistorySection(evidenceCase));
-        builder.Append("</main>").Append(ActionsSection(evidenceCase)).Append("</div></div>");
+        builder.Append("</main>").Append(ActionsSection(evidenceCase, canDelete)).Append("</div></div>");
         return builder.ToString();
     }
 
@@ -256,21 +303,15 @@ public sealed class DemosToDiscordWebfront : IDisposable
     {
         if (item.ReviewDecision == EvidenceReviewDecision.Unreviewed)
             return "<div class=\"flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-amber-300\"><i class=\"ph ph-warning-circle text-xl\"></i><div><div class=\"font-semibold\">Awaiting administrator review</div><div class=\"text-sm opacity-80\">Inspect the demo, reports and metrics before recording a decision.</div></div></div>";
-
-        var css = item.ReviewDecision switch
-        {
-            EvidenceReviewDecision.CheatingActionTaken or EvidenceReviewDecision.CheatingNoAction =>
-                "border-red-500/30 bg-red-500/10 text-red-300",
-            EvidenceReviewDecision.NotCheatingNoAction =>
-                "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-            _ => "border-primary/30 bg-primary/10 text-primary"
-        };
-        return $"<div class=\"flex items-center gap-3 rounded-xl border px-4 py-3 {css}\"><i class=\"ph ph-check-circle text-xl\"></i><div><div class=\"font-semibold\">{Encode(TitleCase(EvidenceReviewService.DecisionLabel(item.ReviewDecision)))}</div><div class=\"text-sm opacity-80\">Reviewed by {Encode(item.ReviewedByName ?? "an administrator")} · {Encode(EvidenceTime.Format(item.ReviewedAtUtc, string.Empty))}</div></div></div>";
+        if (item.ReviewDecision is EvidenceReviewDecision.NeedsMoreReview or EvidenceReviewDecision.Inconclusive)
+            return "<div class=\"flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-primary\"><i class=\"ph ph-magnifying-glass text-xl\"></i><div><div class=\"font-semibold\">Further review required</div><div class=\"text-sm opacity-80\">This case remains open for additional evidence or another administrator decision.</div></div></div>";
+        return string.Empty;
     }
 
-    private static string HeroSection(EvidenceCase item)
+    private string HeroSection(EvidenceCase item)
     {
         var confidence = EvidenceAssessment.Confidence(item);
+        var match = _friendlyNames.Resolve(item.Game, item.Map, item.Mode);
         var initial = string.IsNullOrWhiteSpace(item.TargetName)
             ? "?"
             : item.TargetName.Trim()[0].ToString().ToUpperInvariant();
@@ -294,15 +335,12 @@ public sealed class DemosToDiscordWebfront : IDisposable
                 </div>
                 <a href="{profileUrl}" class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"><i class="ph ph-user"></i>Open profile</a>
               </div>
-              <dl class="dtd-identity-grid p-5 md:px-6">
-                {InfoBlock("Server", item.ServerName, "ph-hard-drives")}
-                {InfoBlock("Endpoint", item.ServerId, "ph-plugs-connected")}
-                {InfoBlock("Map / mode", $"{item.Map} / {item.Mode}", "ph-map-trifold")}
-                {InfoBlock("Captured", EvidenceTime.Format(item.CreatedAtUtc), "ph-clock")}
-                {InfoBlock("Evidence", string.Join(", ", item.TriggerTypes), "ph-files")}
-                {InfoBlock("Confidence", $"{confidence.Label} — {confidence.Detail}", "ph-shield-check")}
-                {InfoBlock("Last updated", EvidenceTime.Format(item.UpdatedAtUtc), "ph-arrow-clockwise")}
-              </dl>
+              <div class="grid gap-px border-t border-line bg-line sm:grid-cols-2 xl:grid-cols-4">
+                <div class="min-w-0 bg-surface px-5 py-4"><div class="text-xs font-semibold uppercase tracking-wide text-muted">Server</div><div class="mt-1 truncate font-medium text-foreground" title="{Encode(CleanDisplayText(item.ServerName))}">{Encode(CleanDisplayText(item.ServerName))}</div><div class="mt-1 text-xs text-muted">{Encode(item.ServerId)}</div></div>
+                <div class="min-w-0 bg-surface px-5 py-4"><div class="text-xs font-semibold uppercase tracking-wide text-muted">Match</div><div class="mt-1 font-medium text-foreground">{Encode(match.Display)}</div><div class="mt-1 font-mono text-xs text-muted">{Encode(match.RawDisplay)}</div></div>
+                <div class="min-w-0 bg-surface px-5 py-4"><div class="text-xs font-semibold uppercase tracking-wide text-muted">Evidence source</div><div class="mt-1 font-medium text-foreground">{Encode(string.Join(" + ", item.TriggerTypes.Select(TriggerLabel)))}</div><div class="mt-1 text-xs text-muted">Captured {Encode(EvidenceTime.Format(item.CreatedAtUtc))}</div></div>
+                <div class="min-w-0 bg-surface px-5 py-4"><div class="text-xs font-semibold uppercase tracking-wide text-muted">Assessment</div><div class="mt-1 font-medium text-foreground">{Encode(confidence.Label)}</div><div class="mt-1 line-clamp-2 text-xs text-muted">{Encode(confidence.Detail)}</div></div>
+              </div>
             </section>
             """;
     }
@@ -324,7 +362,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         return $"""
             <section class="rounded-xl border border-line bg-surface p-5 shadow-sm">
               <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div><h3 class="font-semibold text-foreground">Review decision</h3><p class="text-sm text-muted">The current administrative assessment for this evidence.</p></div>
+                <div><h3 class="font-semibold text-foreground">Case status and decision</h3><p class="text-sm text-muted">Ownership, report state and the current administrative outcome.</p></div>
                 {ReviewBadge(item.ReviewDecision)}
               </div>
               <dl class="grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -415,7 +453,65 @@ public sealed class DemosToDiscordWebfront : IDisposable
         return builder.ToString();
     }
 
-    private static string ActionsSection(EvidenceCase item)
+    internal static string ProactiveAnalysisSection(EvidenceCase evidenceCase)
+    {
+        if (evidenceCase.ProactiveDetections.Count == 0)
+            return string.Empty;
+
+        var assessment = evidenceCase.ProactiveDetections
+            .OrderByDescending(item => item.RiskScore)
+            .ThenByDescending(item => item.WhenUtc)
+            .First();
+        var signals = assessment.Signals.OrderByDescending(item => item.Contribution).ToList();
+        var riskClass = assessment.RiskScore switch
+        {
+            >= 80 => "border-red-500/30 bg-red-500/10 text-red-300",
+            >= 65 => "border-orange-500/30 bg-orange-500/10 text-orange-300",
+            >= 50 => "border-amber-500/30 bg-amber-500/10 text-amber-300",
+            >= 25 => "border-primary/30 bg-primary/10 text-primary",
+            _ => "border-line bg-surface-alt/30 text-muted"
+        };
+        var builder = new StringBuilder("<section id=\"proactive-analysis\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between\"><div><h3 class=\"font-semibold text-foreground\">Proactive statistical analysis</h3><p class=\"mt-0.5 text-sm text-muted\">Explains which stored player metrics differed from the comparable IW4MAdmin population.</p></div>")
+            .Append($"<span class=\"inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-sm font-semibold {riskClass}\">{Encode(assessment.RiskLevel)} · {assessment.RiskScore}/100</span></div>");
+
+        if (signals.Count == 0)
+        {
+            builder.Append("<div class=\"p-5\"><div class=\"flex gap-3 rounded-lg border border-line bg-surface-alt/20 p-4\"><i class=\"ph ph-info text-xl text-primary\"></i><div><div class=\"font-medium text-foreground\">No unusual statistical indicators were identified</div><p class=\"mt-1 text-sm leading-relaxed text-muted\">No player metric crossed the detector's 97th-percentile signal floor. This normal case was retained only because the diagnostic case threshold was set low enough to include a 0/100 assessment.</p></div></div>")
+                .Append($"<div class=\"mt-3 text-xs text-muted\">Evaluation trigger: {Encode(string.IsNullOrWhiteSpace(assessment.EvaluationReason) ? "proactive evaluation" : assessment.EvaluationReason)} · assessed {Encode(EvidenceTime.Format(assessment.WhenUtc))}</div></div></section>");
+            return builder.ToString();
+        }
+
+        builder.Append("<div class=\"p-5\"><div class=\"mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200\"><div class=\"font-semibold\">Why this case was raised</div><p class=\"mt-1 opacity-90\">The following aggregate metrics were unusually high compared with eligible players in the stated baseline. They are review signals, not proof of cheating.</p></div><div class=\"space-y-3\">");
+        foreach (var signal in signals)
+        {
+            builder.Append("<article class=\"rounded-lg border border-line bg-surface-alt/20 p-4\"><div class=\"flex flex-wrap items-start justify-between gap-2\"><div><div class=\"font-semibold text-foreground\">")
+                .Append(Encode(TitleCase(signal.Label)))
+                .Append("</div><div class=\"mt-1 text-sm text-muted\">Observed <span class=\"font-semibold text-foreground\">")
+                .Append(Encode(FormatProactiveValue(signal, signal.Observed)))
+                .Append("</span> · population median <span class=\"font-semibold text-foreground\">")
+                .Append(Encode(FormatProactiveValue(signal, signal.PopulationMedian)))
+                .Append("</span></div></div><span class=\"rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-300\">")
+                .Append(Encode($"{signal.Percentile:0.###}th percentile"))
+                .Append("</span></div><div class=\"mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4\">")
+                .Append(Definition("Compared with median", $"{signal.ExpectedMultiple:0.##}x"))
+                .Append(Definition("Player sample", signal.SampleSize.ToString("N0")))
+                .Append(Definition("Eligible population", signal.EligiblePopulation.ToString("N0")))
+                .Append(Definition("Risk contribution", $"+{signal.Contribution:0.##}"))
+                .Append("</div><div class=\"mt-3 text-xs text-muted\">Baseline scope: <span class=\"font-mono text-foreground\">")
+                .Append(Encode(signal.BaselineScope))
+                .Append("</span></div></article>");
+        }
+        builder.Append($"</div><div class=\"mt-4 flex flex-col gap-1 border-t border-line pt-4 text-xs text-muted sm:flex-row sm:items-center sm:justify-between\"><span>Evaluation trigger: {Encode(string.IsNullOrWhiteSpace(assessment.EvaluationReason) ? "proactive evaluation" : assessment.EvaluationReason)}</span><span>Assessed {Encode(EvidenceTime.Format(assessment.WhenUtc))}</span></div><p class=\"mt-3 text-xs text-muted\">Human review is required. DemosToDiscord does not automatically punish a player from this assessment.</p></div></section>");
+        return builder.ToString();
+    }
+
+    private static string FormatProactiveValue(ProactiveRiskSignal signal, double value) => signal.Metric switch
+    {
+        ProactiveMetric.TrackedHeadRate or ProactiveMetric.KillingHeadRate => $"{value * 100:0.0}%",
+        _ => value.ToString("0.###", CultureInfo.InvariantCulture)
+    };
+
+    private static string ActionsSection(EvidenceCase item, bool canDelete)
     {
         var targetId = item.TargetClientId;
         var builder = new StringBuilder("<aside class=\"min-w-0\"><section class=\"dtd-actions rounded-xl border border-line bg-surface p-4 shadow-sm\"><h3 class=\"mb-3 text-xs font-bold uppercase tracking-wider text-muted\">Player actions</h3><div class=\"space-y-2\">");
@@ -433,8 +529,13 @@ public sealed class DemosToDiscordWebfront : IDisposable
             .Append(DynamicAction("Cheating — action taken", "ph-shield-warning", item, QuickReviewInputs(item, EvidenceReviewDecision.CheatingActionTaken, true), "text-red-400", "Confirm cheating decision", "Confirm decision"))
             .Append(DynamicAction("Not cheating — clear report", "ph-check-circle", item, QuickReviewInputs(item, EvidenceReviewDecision.NotCheatingNoAction, true), "text-emerald-400", "Clear player evidence", "Mark not cheating"))
             .Append(DynamicAction("Needs more review", "ph-magnifying-glass", item, QuickReviewInputs(item, EvidenceReviewDecision.NeedsMoreReview, false), "text-amber-400", "Queue for more review", "Save decision"))
-            .Append(DynamicAction("Clear attached report(s)", "ph-eraser", item, ClearReportInputs(item), "text-muted", "Clear attached reports", "Clear reports"))
-            .Append("</div><p class=\"mt-4 text-xs leading-relaxed text-muted\">Punishment buttons use IW4MAdmin's native permission checks and confirmation forms. Evidence decisions are retained with the case.</p></section></aside>");
+            .Append(DynamicAction("Clear attached report(s)", "ph-eraser", item, ClearReportInputs(item), "text-muted", "Clear attached reports", "Clear reports"));
+        if (canDelete)
+        {
+            builder.Append("</div><div class=\"my-4 border-t border-line\"></div><h3 class=\"mb-3 text-xs font-bold uppercase tracking-wider text-muted\">Owner tools</h3><div class=\"space-y-2\">")
+                .Append(DynamicAction("Delete case permanently", "ph-trash", item, DeleteCaseInputs(item), "text-red-400", "Delete evidence case?", "Delete permanently", DeleteInteractionKey));
+        }
+        builder.Append("</div><p class=\"mt-4 text-xs leading-relaxed text-muted\">Punishment buttons use IW4MAdmin's native permission checks and confirmation forms. Evidence decisions are retained with the case.</p></section></aside>");
         return builder.ToString();
     }
 
@@ -451,11 +552,12 @@ public sealed class DemosToDiscordWebfront : IDisposable
         IReadOnlyList<Dictionary<string, object?>> inputs,
         string color,
         string modalTitle,
-        string submitLabel)
+        string submitLabel,
+        string interactionKey = ReviewInteractionKey)
     {
         var meta = new Dictionary<string, string>
         {
-            ["InteractionId"] = ReviewInteractionKey,
+            ["InteractionId"] = interactionKey,
             ["ActionButtonLabel"] = submitLabel,
             ["Name"] = modalTitle,
             ["ShouldRefresh"] = "true",
@@ -518,6 +620,12 @@ public sealed class DemosToDiscordWebfront : IDisposable
         Input("Operation", "hidden", value: operation)
     ];
 
+    private static IReadOnlyList<Dictionary<string, object?>> DeleteCaseInputs(EvidenceCase item) =>
+    [
+        Input("CaseId", "hidden", value: item.Id),
+        Input("ConfirmDelete", "checkbox", "Permanently delete this retained case metadata", required: true)
+    ];
+
     private static Dictionary<string, object?> Input(
         string name,
         string type,
@@ -539,24 +647,24 @@ public sealed class DemosToDiscordWebfront : IDisposable
 
     private static string ReportsSection(EvidenceCase evidenceCase)
     {
+        if (evidenceCase.Reports.Count == 0)
+            return string.Empty;
+
         var reportState = evidenceCase.ReportsClearedAtUtc is null
             ? "<span class=\"rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-300\">Active / unchanged</span>"
             : $"<span class=\"rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-300\">{evidenceCase.ReportsClearedCount} cleared</span>";
         var builder = new StringBuilder($"<section id=\"reports\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"px-5 py-4 border-b border-line flex items-center justify-between gap-3\"><div><h3 class=\"font-semibold text-foreground\">Player reports</h3><p class=\"text-sm text-muted\">Reports grouped into this evidence case.</p></div>{reportState}</div><div class=\"overflow-x-auto\"><table class=\"w-full text-left\"><thead class=\"text-xs uppercase text-muted border-b border-line bg-surface-alt/30\"><tr><th class=\"px-5 py-3\">Time ({Encode(EvidenceTime.Label)})</th><th class=\"px-5 py-3\">Match position</th><th class=\"px-5 py-3\">Reporter</th><th class=\"px-5 py-3\">Reason</th><th class=\"px-5 py-3\">Penalty</th></tr></thead><tbody class=\"divide-y divide-line\">");
-        if (evidenceCase.Reports.Count == 0)
-            builder.Append("<tr><td colspan=\"5\" class=\"px-5 py-6 text-center text-muted\">No player reports are attached to this case.</td></tr>");
-        else
-            foreach (var report in evidenceCase.Reports.OrderBy(item => item.WhenUtc))
-                builder.Append("<tr class=\"transition-colors hover:bg-surface-hover/30\">").Append(Cell(EvidenceTime.Format(report.WhenUtc))).Append(Cell(EvidenceTime.MatchOffset(report.WhenUtc, evidenceCase.DemoStartedAtUtc))).Append(Cell(report.ReporterName)).Append(Cell(report.Reason)).Append(Cell(report.PenaltyId is > 0 ? $"#{report.PenaltyId}" : "Legacy")).Append("</tr>");
+        foreach (var report in evidenceCase.Reports.OrderBy(item => item.WhenUtc))
+            builder.Append("<tr class=\"transition-colors hover:bg-surface-hover/30\">").Append(Cell(EvidenceTime.Format(report.WhenUtc))).Append(Cell(EvidenceTime.MatchOffset(report.WhenUtc, evidenceCase.DemoStartedAtUtc))).Append(Cell(report.ReporterName)).Append(Cell(report.Reason)).Append(Cell(report.PenaltyId is > 0 ? $"#{report.PenaltyId}" : "Legacy")).Append("</tr>");
         return builder.Append("</tbody></table></div></section>").ToString();
     }
 
     private static string AntiCheatSection(EvidenceCase evidenceCase, AntiCheatCaseMetrics? metrics)
     {
-        var builder = new StringBuilder("<section id=\"detection\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"px-5 py-4 border-b border-line\"><h3 class=\"font-semibold text-foreground\">Detection event</h3><p class=\"text-sm text-muted\">Case-specific snapshots captured around an automated ban.</p></div>");
         if (evidenceCase.AntiCheat is null)
-            return builder.Append("<div class=\"p-5 text-sm text-muted\">This case was not triggered by an automated anti-cheat ban.</div></section>").ToString();
+            return string.Empty;
 
+        var builder = new StringBuilder("<section id=\"detection\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"px-5 py-4 border-b border-line\"><h3 class=\"font-semibold text-foreground\">Detection event</h3><p class=\"text-sm text-muted\">Case-specific snapshots captured around an automated ban.</p></div>");
         builder.Append($"<div class=\"p-5 border-b border-line\"><div class=\"text-sm text-muted\">Detection</div><div class=\"mt-1 text-foreground break-words\">{Encode(evidenceCase.AntiCheat.Detection)}</div><div class=\"mt-2 text-xs text-muted\">Penalty #{Encode(metrics?.PenaltyId?.ToString() ?? "unresolved")} · {Encode(EvidenceTime.Format(evidenceCase.AntiCheat.WhenUtc))}</div></div>")
             .Append("<div class=\"overflow-x-auto\"><table class=\"w-full text-left\"><thead class=\"text-xs uppercase text-muted border-b border-line\"><tr><th class=\"px-5 py-3\">Time</th><th class=\"px-5 py-3\">K/D/H</th><th class=\"px-5 py-3\">Strain</th><th class=\"px-5 py-3\">Snap avg / hits</th><th class=\"px-5 py-3\">Weapon / location</th><th class=\"px-5 py-3\">Distance</th></tr></thead><tbody>");
         if (metrics is null || metrics.Snapshots.Count == 0)
@@ -586,23 +694,24 @@ public sealed class DemosToDiscordWebfront : IDisposable
         return builder.Append("</tbody></table></div></section>").ToString();
     }
 
-    private static string PlayerHistorySection(IReadOnlyList<EvidenceCase> cases)
+    private string PlayerHistorySection(IReadOnlyList<EvidenceCase> cases)
     {
-        var builder = new StringBuilder("<section class=\"overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"border-b border-line px-5 py-4\"><h3 class=\"font-semibold text-foreground\">Player evidence history</h3><p class=\"text-sm text-muted\">Other retained evidence cases for this player.</p></div><div class=\"divide-y divide-line\">");
         if (cases.Count == 0)
-            builder.Append("<div class=\"p-5 text-sm text-muted\">No other retained cases were found for this player.</div>");
-        else
-            foreach (var item in cases)
-            {
-                builder.Append($"<a data-enhance-nav=\"false\" href=\"{CaseUrl(item.Id)}\" class=\"flex flex-col gap-2 px-5 py-3 transition-colors hover:bg-surface-hover/30 md:flex-row md:items-center md:justify-between\"><div><div class=\"font-medium text-foreground\">{Encode(item.ServerName)} · {Encode(item.Map)} / {Encode(item.Mode)}</div><div class=\"mt-1 text-xs text-muted\">{Encode(EvidenceTime.Format(item.CreatedAtUtc))} · {Encode(string.Join(" + ", item.TriggerTypes.Select(TriggerLabel)))}</div></div><div class=\"flex flex-wrap gap-2\">{StatusBadge(item.Status)}{ReviewBadge(item.ReviewDecision)}</div></a>");
-            }
+            return string.Empty;
+
+        var builder = new StringBuilder("<section class=\"overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"border-b border-line px-5 py-4\"><h3 class=\"font-semibold text-foreground\">Player evidence history</h3><p class=\"text-sm text-muted\">Other retained evidence cases for this player.</p></div><div class=\"divide-y divide-line\">");
+        foreach (var item in cases)
+        {
+            var match = _friendlyNames.Resolve(item.Game, item.Map, item.Mode);
+            builder.Append($"<a data-enhance-nav=\"false\" href=\"{CaseUrl(item.Id)}\" class=\"flex flex-col gap-2 px-5 py-3 transition-colors hover:bg-surface-hover/30 md:flex-row md:items-center md:justify-between\"><div><div class=\"font-medium text-foreground\">{Encode(CleanDisplayText(item.ServerName))} · {Encode(match.Display)}</div><div class=\"mt-1 text-xs text-muted\">{Encode(EvidenceTime.Format(item.CreatedAtUtc))} · {Encode(match.RawDisplay)} · {Encode(string.Join(" + ", item.TriggerTypes.Select(TriggerLabel)))}</div></div><div class=\"flex flex-wrap gap-2\">{StatusBadge(item.Status)}{ReviewBadge(item.ReviewDecision)}</div></a>");
+        }
         return builder.Append("</div></section>").ToString();
     }
 
     private static string AuditHistorySection(EvidenceCase evidenceCase)
     {
         var history = evidenceCase.History.OrderByDescending(item => item.WhenUtc).ToList();
-        var builder = new StringBuilder("<section class=\"overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"border-b border-line px-5 py-4\"><h3 class=\"font-semibold text-foreground\">Case activity</h3><p class=\"text-sm text-muted\">Assignment, evidence and review changes retained with this case.</p></div><div class=\"divide-y divide-line\">");
+        var builder = new StringBuilder($"<details class=\"group overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><summary class=\"flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 transition-colors hover:bg-surface-hover/20\"><div><h3 class=\"font-semibold text-foreground\">Case activity</h3><p class=\"text-sm text-muted\">{history.Count:N0} retained assignment, evidence and review event(s).</p></div><i class=\"ph ph-caret-down text-muted transition-transform group-open:rotate-180\"></i></summary><div class=\"divide-y divide-line border-t border-line\">");
         if (history.Count == 0)
             builder.Append("<div class=\"p-5 text-sm text-muted\">No audit entries have been recorded for this legacy case.</div>");
         else
@@ -613,7 +722,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
                     : $"<div class=\"mt-1 whitespace-pre-line text-sm text-muted\">{Encode(entry.Notes)}</div>";
                 builder.Append($"<div class=\"flex gap-3 px-5 py-3\"><div class=\"mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary\"></div><div class=\"min-w-0 flex-1\"><div class=\"font-medium text-foreground\">{Encode(entry.Summary)}</div>{notes}<div class=\"mt-1 text-xs text-muted\">{Encode(entry.AdminName)} · {Encode(EvidenceTime.Format(entry.WhenUtc))}</div></div></div>");
             }
-        return builder.Append("</div></section>").ToString();
+        return builder.Append("</div></details>").ToString();
     }
 
     private static string SearchFilters(
@@ -622,17 +731,30 @@ public sealed class DemosToDiscordWebfront : IDisposable
         IReadOnlyList<EvidenceCase> cases)
     {
         var games = cases.Select(item => item.Game).Where(item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(item => item);
-        var servers = cases.Select(item => new { item.ServerId, item.ServerName }).DistinctBy(item => item.ServerId, StringComparer.OrdinalIgnoreCase).OrderBy(item => item.ServerName);
+        var servers = cases.Select(item => new { item.ServerId, ServerName = CleanDisplayText(item.ServerName) }).DistinctBy(item => item.ServerId, StringComparer.OrdinalIgnoreCase).OrderBy(item => item.ServerName);
         var builder = new StringBuilder($"<form data-enhance-nav=\"false\" method=\"get\" action=\"/Interaction/Render/{InteractionKey}\" class=\"grid gap-3 border-b border-line bg-surface-alt/10 px-4 py-4 md:grid-cols-2 xl:grid-cols-4\"><input type=\"hidden\" name=\"view\" value=\"{Encode(view)}\"><label class=\"xl:col-span-2\"><span class=\"mb-1 block text-xs font-semibold uppercase tracking-wide text-muted\">Search</span><div class=\"flex items-center rounded-lg border border-line bg-surface px-3\"><i class=\"ph ph-magnifying-glass text-muted\"></i><input name=\"q\" value=\"{Encode(Meta(meta, "q"))}\" placeholder=\"Player, case, GUID, map or server\" class=\"w-full border-0 bg-transparent px-2 py-2 text-sm text-foreground outline-none\"></div></label>");
         builder.Append(SelectFilter("game", "Game", Meta(meta, "game"), new[] { ("", "All games") }.Concat(games.Select(item => (item, item)))))
             .Append(SelectFilter("server", "Server", Meta(meta, "server"), new[] { ("", "All servers") }.Concat(servers.Select(item => (item.ServerId, item.ServerName)))))
-            .Append(SelectFilter("source", "Evidence source", Meta(meta, "source"), new[] { ("", "All sources"), ("report", "Player report"), ("anticheat", "Anti-cheat"), ("manual", "Manual ban") }))
+            .Append(SelectFilter("source", "Evidence source", Meta(meta, "source"), new[] { ("", "All sources"), ("report", "Player report"), ("proactive", "Proactive detection"), ("anticheat", "Anti-cheat"), ("manual", "Manual ban") }))
             .Append(SelectFilter("demo", "Demo state", Meta(meta, "demo"), new[] { ("", "Any demo state"), ("uploaded", "Uploaded"), ("unsupported", "Not supported"), ("missing", "Expected but missing"), ("processing", "Processing"), ("failed", "Failed") }))
             .Append(SelectFilter("review", "Review state", Meta(meta, "review"), new[] { ("", "Any review state"), ("Unreviewed", "Unreviewed"), ("NeedsMoreReview", "Needs more review"), ("CheatingActionTaken", "Cheating, action taken"), ("CheatingNoAction", "Cheating, no action"), ("NotCheatingNoAction", "Not cheating"), ("Inconclusive", "Inconclusive") }))
             .Append(DateFilter("from", "Captured from", Meta(meta, "from")))
             .Append(DateFilter("to", "Captured to", Meta(meta, "to")))
             .Append($"<div class=\"flex items-end gap-2\"><button type=\"submit\" class=\"inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-action-primary px-3 py-2 text-sm font-medium text-white hover:bg-action-primary-hover\"><i class=\"ph ph-funnel\"></i>Apply filters</button><a data-enhance-nav=\"false\" href=\"{OverviewUrl(view)}\" class=\"rounded-lg border border-line bg-surface px-3 py-2 text-sm text-muted hover:bg-surface-hover\">Clear</a></div></form>");
         return builder.ToString();
+    }
+
+    private static string CollapsibleFilters(
+        IDictionary<string, string> meta,
+        string view,
+        IReadOnlyList<EvidenceCase> cases)
+    {
+        var activeCount = new[] { "q", "game", "server", "source", "demo", "review", "from", "to" }
+            .Count(key => !string.IsNullOrWhiteSpace(Meta(meta, key)));
+        var countBadge = activeCount == 0
+            ? string.Empty
+            : $"<span class=\"rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary\">{activeCount} active</span>";
+        return $"<details class=\"group border-b border-line\"><summary class=\"flex cursor-pointer list-none items-center justify-between gap-3 bg-surface-alt/10 px-5 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover/20\"><span class=\"flex items-center gap-2\"><i class=\"ph ph-funnel text-primary\"></i>Search and filters {countBadge}</span><i class=\"ph ph-caret-down text-muted transition-transform group-open:rotate-180\"></i></summary>{SearchFilters(meta, view, cases)}</details>";
     }
 
     private static string SelectFilter(string name, string label, string selected, IEnumerable<(string Value, string Label)> options)
@@ -651,12 +773,12 @@ public sealed class DemosToDiscordWebfront : IDisposable
 
     private static string NormalizeView(string? view) => view?.ToLowerInvariant() switch
     {
-        "awaiting" or "processing" or "followup" or "cheating" or "cleared" or "failed" or "unassigned" or "mine" =>
+        "all" or "awaiting" or "processing" or "followup" or "cheating" or "cleared" or "failed" or "unassigned" or "mine" =>
             view.ToLowerInvariant(),
-        _ => "all"
+        _ => "summary"
     };
 
-    private static IEnumerable<EvidenceCase> FilterCases(
+    private IEnumerable<EvidenceCase> FilterCases(
         IEnumerable<EvidenceCase> source,
         string view,
         int originId,
@@ -680,8 +802,12 @@ public sealed class DemosToDiscordWebfront : IDisposable
 
         var query = Meta(meta, "q");
         if (!string.IsNullOrWhiteSpace(query))
-            cases = cases.Where(item => new[] { item.Id, item.TargetName, item.TargetClientId.ToString(), item.TargetNetworkId.ToString(), item.ServerName, item.ServerId, item.Map, item.Mode }
-                .Any(value => value.Contains(query, StringComparison.OrdinalIgnoreCase)));
+            cases = cases.Where(item =>
+            {
+                var match = _friendlyNames.Resolve(item.Game, item.Map, item.Mode);
+                return new[] { item.Id, item.TargetName, item.TargetClientId.ToString(), item.TargetNetworkId.ToString(), item.ServerName, item.ServerId, item.Map, item.Mode, match.Map, match.Mode }
+                    .Any(value => value.Contains(query, StringComparison.OrdinalIgnoreCase));
+            });
         var game = Meta(meta, "game");
         if (!string.IsNullOrWhiteSpace(game))
             cases = cases.Where(item => item.Game.Equals(game, StringComparison.OrdinalIgnoreCase));
@@ -691,6 +817,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         cases = Meta(meta, "source").ToLowerInvariant() switch
         {
             "report" => cases.Where(item => item.Reports.Count > 0),
+            "proactive" => cases.Where(item => item.ProactiveDetections.Count > 0),
             "anticheat" => cases.Where(item => item.AntiCheat is not null),
             "manual" => cases.Where(item => item.ManualBanObserved),
             _ => cases
@@ -714,6 +841,44 @@ public sealed class DemosToDiscordWebfront : IDisposable
         return cases;
     }
 
+    private static string ViewTitle(string view) => view switch
+    {
+        "awaiting" => "Awaiting review",
+        "processing" => "Evidence processing",
+        "followup" => "Needs follow-up",
+        "cheating" => "Confirmed cheating",
+        "cleared" => "Cleared cases",
+        "failed" => "Failed or missing evidence",
+        "unassigned" => "Unassigned cases",
+        "mine" => "Assigned to me",
+        _ => "All retained cases"
+    };
+
+    private static string DashboardCard(
+        string label,
+        int value,
+        string description,
+        string icon,
+        string color,
+        string destinationView) => $"""
+        <a data-enhance-nav="false" href="{OverviewUrl(destinationView)}" title="{Encode(description)}" class="dtd-status-card group flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-sm transition-colors hover:border-primary/40 hover:bg-surface-hover/20">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-alt"><i class="ph {Encode(icon)} text-xl {Encode(color)}"></i></div>
+          <div class="min-w-0 flex-1"><div class="text-2xl font-bold leading-none text-foreground">{value:N0}</div><div class="mt-1 truncate text-sm font-semibold text-foreground">{Encode(label)}</div></div>
+          <i class="ph ph-caret-right shrink-0 text-muted transition-transform group-hover:translate-x-1 group-hover:text-primary"></i>
+        </a>
+        """;
+
+    private static string QueueShortcut(
+        string label,
+        int value,
+        string icon,
+        string destinationView,
+        string? extraQuery = null)
+    {
+        var url = OverviewUrl(destinationView) + (string.IsNullOrWhiteSpace(extraQuery) ? string.Empty : $"&{extraQuery}");
+        return $"<a data-enhance-nav=\"false\" href=\"{url}\" class=\"flex items-center gap-3 bg-surface px-5 py-4 transition-colors hover:bg-surface-hover/30\"><div class=\"flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-alt text-primary\"><i class=\"ph {Encode(icon)}\"></i></div><div class=\"min-w-0 flex-1\"><div class=\"font-medium text-foreground\">{Encode(label)}</div><div class=\"text-xs text-muted\">{value:N0} case(s)</div></div><i class=\"ph ph-caret-right text-muted\"></i></a>";
+    }
+
     private static string OverviewMetric(
         string label,
         int value,
@@ -734,7 +899,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         return $"<a data-enhance-nav=\"false\" href=\"{OverviewUrl(destinationView)}\" class=\"inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors {active}\"><span>{Encode(label)}</span><span class=\"rounded bg-black/10 px-1.5 py-0.5 text-xs\">{count:N0}</span></a>";
     }
 
-    private static string OverviewCaseRow(EvidenceCase item)
+    private string OverviewCaseRow(EvidenceCase item)
     {
         var initial = string.IsNullOrWhiteSpace(item.TargetName)
             ? "?"
@@ -744,6 +909,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         var assignment = item.AssignedToClientId is null
             ? "Unassigned"
             : $"Assigned to {item.AssignedToName}";
+        var match = _friendlyNames.Resolve(item.Game, item.Map, item.Mode);
         return $"""
             <article class="dtd-case-row px-5 py-4 transition-colors hover:bg-surface-hover/30 md:px-6">
               <div class="flex min-w-0 items-center gap-3">
@@ -759,8 +925,8 @@ public sealed class DemosToDiscordWebfront : IDisposable
                 </div>
               </div>
               <div class="min-w-0 text-sm">
-                <div class="truncate font-medium text-foreground" title="{Encode(item.ServerName)}">{Encode(item.ServerName)}</div>
-                <div class="mt-1 truncate text-xs text-muted" title="{Encode(item.ServerId)} · {Encode(item.Map)} / {Encode(item.Mode)}">{Encode(item.ServerId)} · {Encode(item.Map)} / {Encode(item.Mode)}</div>
+                <div class="truncate font-medium text-foreground" title="{Encode(match.Display)}">{Encode(match.Display)}</div>
+                <div class="mt-1 truncate text-xs text-muted" title="{Encode(CleanDisplayText(item.ServerName))} · {Encode(match.RawDisplay)}">{Encode(CleanDisplayText(item.ServerName))} · {Encode(match.RawDisplay)}</div>
               </div>
               <div class="flex flex-wrap items-center gap-2 md:justify-end">
                 {StatusBadge(item.Status)}{ReviewBadge(item.ReviewDecision)}
@@ -781,6 +947,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
     {
         EvidenceTriggerType.AutomatedBan => "Anti-cheat",
         EvidenceTriggerType.ManualBan => "Manual ban",
+        EvidenceTriggerType.ProactiveDetection => "Proactive detection",
         _ => "Report"
     };
 
@@ -835,6 +1002,8 @@ public sealed class DemosToDiscordWebfront : IDisposable
     }
     private static string TitleCase(string value) =>
         CultureInfo.InvariantCulture.TextInfo.ToTitleCase(value);
+    private static string CleanDisplayText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "Unknown" : value.StripColors();
     private static string Encode(object? value) => WebUtility.HtmlEncode(value?.ToString() ?? string.Empty);
 
     private void OnConfigurationUpdated(DemosToDiscordConfig updated)
@@ -851,6 +1020,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         _configurationHandler.Updated -= OnConfigurationUpdated;
         _interactions.UnregisterInteraction(InteractionKey);
         _interactions.UnregisterInteraction(ReviewInteractionKey);
+        _interactions.UnregisterInteraction(DeleteInteractionKey);
     }
 }
 

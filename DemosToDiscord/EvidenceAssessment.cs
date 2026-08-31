@@ -6,10 +6,17 @@ public static class EvidenceAssessment
     {
         if (item.AntiCheat is not null && item.Reports.Count > 0)
             return new EvidenceConfidence("Corroborated", "Report and automated detection", 5);
+        if (item.ProactiveDetections.Count > 0 && (item.AntiCheat is not null || item.Reports.Count > 0))
+            return new EvidenceConfidence("Corroborated", "Statistical review plus independent evidence", 5);
         if (item.AntiCheat is not null)
             return new EvidenceConfidence("Automated detection", "Anti-cheat evidence captured", 4);
         if (item.Reports.Count > 1)
             return new EvidenceConfidence("Multiple reports", $"{item.Reports.Count} reports grouped", 3);
+        if (item.ProactiveDetections.MaxBy(detection => detection.RiskScore) is { } proactive)
+            return new EvidenceConfidence(
+                $"Proactive {proactive.RiskLevel}",
+                $"Explainable statistical risk {proactive.RiskScore}/100 — human review required",
+                proactive.RiskScore >= 65 ? 4 : 3);
         if (item.DemoSupport is not (DemoSupportStatus.Supported or DemoSupportStatus.Unknown))
             return new EvidenceConfidence("Metadata only", "Demo recording unsupported", 1);
         return new EvidenceConfidence("Single report", "One player report", 2);

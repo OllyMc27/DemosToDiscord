@@ -5,6 +5,7 @@
 - [[Configuration]]
 - [[Language & timezones|Language-and-Timezones]]
 - [[Evidence workflow|Evidence-Workflow]]
+- [[Proactive detection|Proactive-Detection]]
 - [[Demo matching|Demo-Matching]]
 - [[Webfront guide|Webfront-Guide]]
 - [[Discord integration|Discord-Integration]]

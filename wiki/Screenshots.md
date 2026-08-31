@@ -4,19 +4,19 @@ These publication screenshots show the complete DemosToDiscord workflow. Player,
 
 ## Evidence queue
 
-Search, filter and review uploaded and metadata-only evidence from one IW4MAdmin dashboard.
+Start from compact status and utility queues. Retained cases stay out of the way until a moderator chooses a queue; search and advanced filters are available on demand.
 
 ![Evidence queue with search, filters and mixed evidence states](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-evidence-queue.png)
 
 ## Structured case review
 
-Bring the demo, metadata, reports, decision, notes and native IW4MAdmin player actions together.
+Bring friendly/raw match context, reports, decision, notes, original evidence, Owner tools and native IW4MAdmin player actions together.
 
 ![Structured evidence case review](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-case-review.png)
 
 ## Timeline and metrics
 
-Use report offsets to jump to the relevant moment, with player and anti-cheat metrics alongside the timeline.
+Use report offsets to jump to the relevant moment, with player, anti-cheat and proactive signal context alongside the timeline.
 
 ![Match timeline, reports and anti-cheat metrics](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-timeline-metrics.png)
 

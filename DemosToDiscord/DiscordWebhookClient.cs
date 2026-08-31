@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using SharedLibraryCore;
 using SharedLibraryCore.Configuration;
 
 namespace DemosToDiscord;
@@ -11,15 +12,18 @@ public sealed class DiscordWebhookClient : IDisposable
 {
     private readonly ApplicationConfiguration _applicationConfiguration;
     private readonly ILogger<DiscordWebhookClient> _logger;
+    private readonly FriendlyGameNames _friendlyNames;
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(10) };
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
 
     public DiscordWebhookClient(
         ApplicationConfiguration applicationConfiguration,
         DemosToDiscordConfig config,
+        FriendlyGameNames friendlyNames,
         ILogger<DiscordWebhookClient> logger)
     {
         _applicationConfiguration = applicationConfiguration;
+        _friendlyNames = friendlyNames;
         _logger = logger;
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("DemosToDiscord/2.0");
     }
@@ -133,6 +137,7 @@ public sealed class DiscordWebhookClient : IDisposable
             ? null
             : $"{baseUrl}/Client/Profile/{evidenceCase.TargetClientId}";
         var reviewUrl = BuildReviewUrl(baseUrl, evidenceCase.Id);
+        var friendlyMatch = _friendlyNames.Resolve(evidenceCase.Game, evidenceCase.Map, evidenceCase.Mode);
         var fields = new List<object>
         {
             new
@@ -144,13 +149,13 @@ public sealed class DiscordWebhookClient : IDisposable
             new
             {
                 name = "Match",
-                value = Limit($"`{DiscordInlineCode(evidenceCase.Game)}` • `{DiscordInlineCode(evidenceCase.Map)}` • `{DiscordInlineCode(evidenceCase.Mode)}`", 1024),
+                value = Limit($"`{DiscordInlineCode(evidenceCase.Game)}` • **{DiscordText(friendlyMatch.Map)}** • **{DiscordText(friendlyMatch.Mode)}**\n`{DiscordInlineCode(friendlyMatch.RawDisplay)}`", 1024),
                 inline = true
             },
             new
             {
                 name = "Server",
-                value = Limit($"**{DiscordText(evidenceCase.ServerName)}**\n`{DiscordInlineCode(evidenceCase.ServerId)}`", 1024),
+                value = Limit($"**{DiscordText(evidenceCase.ServerName.StripColors())}**\n`{DiscordInlineCode(evidenceCase.ServerId)}`", 1024),
                 inline = false
             }
         };
@@ -162,6 +167,8 @@ public sealed class DiscordWebhookClient : IDisposable
             evidenceSources.Add("automated anti-cheat ban");
         if (evidenceCase.ManualBanObserved)
             evidenceSources.Add("manual ban");
+        if (evidenceCase.ProactiveDetections.Count > 0)
+            evidenceSources.Add("proactive statistical review");
         fields.Add(new
         {
             name = "Evidence source",
@@ -217,6 +224,34 @@ public sealed class DiscordWebhookClient : IDisposable
             });
         }
 
+
+        if (evidenceCase.ProactiveDetections.Count > 0)
+        {
+            var proactive = evidenceCase.ProactiveDetections.OrderByDescending(item => item.WhenUtc).First();
+            var strongest = proactive.Signals.OrderByDescending(item => item.Contribution).FirstOrDefault();
+            var lines = new List<string>
+            {
+                $"**{DiscordText(proactive.RiskLevel.ToString())} — {proactive.RiskScore}/100**"
+            };
+            if (strongest is not null)
+            {
+                lines.Add("Automatically identified for human review; no punishment was issued.");
+                lines.Add($"Strongest: **{DiscordText(strongest.Label)}**");
+                lines.Add($"Observed: **{FormatObserved(strongest)}** • percentile **{strongest.Percentile:0.###}** • **{strongest.ExpectedMultiple:0.##}x** median");
+                lines.Add($"Sample: **{strongest.SampleSize:N0}** • population: **{strongest.EligiblePopulation:N0}** • scope: `{DiscordInlineCode(strongest.BaselineScope)}`");
+            }
+            else
+            {
+                lines.Add("No unusual player metric crossed the detector's 97th-percentile signal floor.");
+                lines.Add("This diagnostic case was retained because the configured case threshold permitted a normal assessment.");
+            }
+            var otherSignals = proactive.Signals.OrderByDescending(item => item.Contribution).Skip(1).Take(2)
+                .Select(item => $"{DiscordText(item.Label)} ({item.Percentile:0.##}th percentile)").ToList();
+            if (otherSignals.Count > 0)
+                lines.Add("Other signals: " + string.Join(" • ", otherSignals));
+            fields.Add(new { name = "Proactive detection", value = Limit(string.Join("\n", lines), 1024), inline = false });
+        }
+
         if (reviewUrl is not null || profileUrl is not null)
         {
             var links = new List<string>();
@@ -229,6 +264,8 @@ public sealed class DiscordWebhookClient : IDisposable
 
         var title = evidenceCase.AntiCheat is not null
             ? $"Anti-cheat evidence • {DiscordText(evidenceCase.TargetName)}"
+            : evidenceCase.ProactiveDetections.Count > 0
+                ? $"Proactive review • {DiscordText(evidenceCase.TargetName)}"
             : $"Report evidence • {DiscordText(evidenceCase.TargetName)}";
         var embed = new Dictionary<string, object>
         {
@@ -276,6 +313,8 @@ public sealed class DiscordWebhookClient : IDisposable
             return "📋 **New metadata-only evidence is ready for review**";
         if (evidenceCase.AntiCheat is not null)
             return "🛡️ **New anti-cheat evidence is ready for review**";
+        if (evidenceCase.ProactiveDetections.Count > 0 && evidenceCase.Reports.Count == 0)
+            return "🔎 **Proactive statistical evidence is ready for human review**";
         return hasDemo
             ? "🎬 **New report evidence is ready for review**"
             : "⚠️ **Evidence captured, but no matching demo was found**";
@@ -376,7 +415,16 @@ public sealed class DiscordWebhookClient : IDisposable
         EvidenceReviewDecision.CheatingActionTaken or EvidenceReviewDecision.CheatingNoAction => 15548997,
         EvidenceReviewDecision.NotCheatingNoAction => 5763719,
         EvidenceReviewDecision.NeedsMoreReview or EvidenceReviewDecision.Inconclusive => 16776960,
-        _ => evidenceCase.AntiCheat is not null ? 15548997 : 5793266
+        _ => evidenceCase.AntiCheat is not null ? 15548997 :
+            evidenceCase.ProactiveDetections.MaxBy(item => item.RiskScore) is { } proactive
+                ? proactive.RiskScore >= 80 ? 15548997 : proactive.RiskScore >= 65 ? 16753920 : 16776960
+                : 5793266
+    };
+
+    private static string FormatObserved(ProactiveRiskSignal signal) => signal.Metric switch
+    {
+        ProactiveMetric.TrackedHeadRate or ProactiveMetric.KillingHeadRate => $"{signal.Observed * 100:0.0}%",
+        _ => signal.Observed.ToString("0.###")
     };
 
     private static bool IsDiscordId(string? value) =>

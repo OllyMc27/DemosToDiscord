@@ -97,7 +97,7 @@ Open the case page again. It refreshes attachment information from the original 
 - Do not rename them after downloading.
 - Confirm the file belongs to the same game/storage profile.
 
-## Moderator cannot access Demo Evidence
+## Moderator cannot access Cheating Case Review
 
 - Check `WebfrontMinimumPermission`.
 - Check the moderator's current IW4MAdmin level.
@@ -110,7 +110,30 @@ Case clearing only targets active reports attached to that case. Legacy cases wi
 
 ## Manual ban created unexpected evidence
 
-Use a current 2.3.x build. Manual bans should only link to a recent existing case and should not create a separate case on the player's current/unrelated server.
+Use a current 2.4.x build. Manual bans should only link to a recent existing case and should not create a separate case on the player's current/unrelated server.
+
+## No proactive cases appear
+
+- Confirm the startup log says proactive detection is enabled.
+- Look for a successful baseline refresh with non-zero player/server and weapon population counts.
+- Confirm the game/server is not in `ProactiveExcludedGames` or `ProactiveExcludedServerIds`.
+- T5 Zombies is excluded by default; bots are never evaluated as suspects.
+- A player must finish/disconnect, wait for `ProactiveEvaluationDelaySeconds`, meet sample requirements and reach `ProactiveCaseRiskThreshold`.
+- Existing report/ban cases are not retrospectively scored.
+- Temporarily enable `Debug` to see why an evaluation was suppressed, then disable it again.
+
+Do not lower thresholds on a production server merely to force a case. See [[Proactive Detection|Proactive-Detection]].
+
+## Proactive case has no unusual indicators
+
+This normally indicates a diagnostic case created while the case threshold was deliberately set very low. At the production default (`50`), a normal 0/100 assessment is not retained. Restore the defaults and wait for a genuinely qualifying completed session.
+
+## Proactive baseline refresh fails
+
+- Confirm IW4MAdmin completed its database migrations and connected to the normal statistics database.
+- Check write permission for `ProactiveBaselineStateFilePath`.
+- Stop IW4MAdmin, move the rebuildable baseline cache aside, then restart to rebuild it.
+- Preserve the complete exception and plugin version when opening an issue.
 
 ## Times are incorrect
 

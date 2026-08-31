@@ -12,6 +12,8 @@
 - Discord message, channel and guild identifiers;
 - assignment, reviewer, decision, notes and audit history.
 
+`Configuration/DemosToDiscordProactiveBaselines.json` contains a rebuildable compact cache of aggregate, server-aware statistical populations used by proactive review. Proactive cases also retain their point-in-time score and contributing signal explanations.
+
 ## Data not copied into the state file
 
 The plugin does not store:
@@ -23,6 +25,12 @@ The plugin does not store:
 - raw player chat unrelated to a report.
 
 Demo and JSON contents remain in their original Plutonium folders and Discord attachments.
+
+## Retention and deletion
+
+Ordinary cases are pruned by `CaseRetentionDays` and `MaxStoredCases`. Cases reviewed as **cheating — action taken** are deliberately protected from both automatic limits. An IW4MAdmin Owner can permanently delete retained case metadata through the confirmed case-page action; doing so does not reverse a penalty or delete Discord evidence.
+
+The proactive baseline cache is derived from the live IW4MAdmin database and can be deleted while IW4MAdmin is stopped if a full rebuild is required.
 
 ## Reduce retained data
 

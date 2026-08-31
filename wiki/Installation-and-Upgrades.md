@@ -22,18 +22,19 @@
 The startup console should include a line similar to:
 
 ```text
-[DemosToDiscord] by OllyMc27 loaded. Version: 2.3.x
+[DemosToDiscord] by OllyMc27 loaded. Version: 2.4.0
 ```
 
 ## First-run checks
 
 1. Run `!dtdstatus` in game.
 2. Run `!dtdtest` as a SeniorAdmin to test the default webhook.
-3. Open **Admin → Demo Evidence** in the webfront.
+3. Open **Admin → Cheating Case Review** in the webfront.
 4. Submit a test report on a T6 multiplayer server.
 5. Wait for the match to end and the demo to finish writing.
 6. Confirm the original `.demo` and `.json` appear in Discord.
 7. Open the case and test the Discord download link.
+8. Confirm a proactive baseline refresh with non-zero population counts appears in the log.
 
 ## Demo-folder permissions
 
@@ -55,13 +56,15 @@ Before a major upgrade, back up:
 - `Configuration/DemosToDiscord.json`;
 - `Configuration/DemosToDiscordCases.json`.
 
+`Configuration/DemosToDiscordProactiveBaselines.json` is rebuildable, but backing it up can reduce work at the first restart.
+
 Then:
 
 1. Stop IW4MAdmin.
 2. Replace the existing file with the new `DemosToDiscord.dll`.
 3. Keep the filename exactly `DemosToDiscord.dll`.
 4. Start IW4MAdmin and verify the version in the loaded list.
-5. Compare the release notes and example configuration for new settings.
+5. Compare the release notes and example configuration for new settings. Version 2.4 adds proactive settings; omitted properties receive safe defaults.
 
 Do not rename the DLL with a version suffix. Do not delete the case state file unless you intentionally want to discard the retained review queue and history.
 

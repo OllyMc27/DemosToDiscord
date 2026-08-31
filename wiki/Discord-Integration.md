@@ -51,6 +51,7 @@ A message can include:
 - game, map and mode;
 - server name and endpoint;
 - evidence source and confidence;
+- proactive risk score and strongest contributing indicators, when applicable;
 - review and assignment state;
 - demo status, filename and size;
 - match timeline and report offsets;
@@ -77,6 +78,16 @@ T5 evidence includes the original `.demo`. Files are uploaded directly—no ZIP 
 ```
 
 When disabled, the case remains in the webfront without creating a Discord message.
+
+## Proactive notifications
+
+Proactive cases are posted only when all three conditions are true:
+
+- the assessment reached `ProactiveCaseRiskThreshold` and was retained;
+- it also reached `ProactiveDiscordRiskThreshold`;
+- `EnableProactiveDiscordNotifications` is `true`.
+
+The message identifies the case as proactive, shows the explainable risk score/signals and links to normal human review. It never announces that the player is definitively cheating and never applies a penalty. See [[Proactive Detection|Proactive-Detection]].
 
 ## Case and profile links
 

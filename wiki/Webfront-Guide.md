@@ -1,21 +1,25 @@
 # Webfront Guide
 
-Open **Admin → Demo Evidence**. Access requires `WebfrontMinimumPermission`, which defaults to `Moderator`.
+Open **Admin → Cheating Case Review**. Access requires `WebfrontMinimumPermission`, which defaults to `Moderator`.
 
 ## Evidence queue
 
-The overview provides:
+The compact overview provides four status queues without immediately loading every retained case. Select a queue to reveal its cases. The case browser provides:
 
 - Awaiting, Processing, Follow-up, Cheating, Cleared and Failed views;
 - Unassigned and Assigned to me views;
-- player, case ID, GUID, map and server search;
-- game, server, source, demo-state, review-state and date filters;
+- player, case ID, GUID, friendly/raw map and server search;
+- game, server, source, demo-state, review-state and date filters, hidden beneath **Search and filters** until requested;
 - upload and review badges;
 - a direct **Review case** action.
 
 Cases remain visible when demos are unsupported or missing.
 
 ![Evidence queue with search, filters and mixed evidence states](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-evidence-queue.png)
+
+## Case browser and filters
+
+The overview never expands every retained case by default. Selecting a status or utility queue opens the case browser. Its **Search and filters** panel is collapsed on every visit until requested, keeping routine triage compact.
 
 ## Case header
 
@@ -24,7 +28,7 @@ The case header shows:
 - player name, client ID and network ID;
 - game and processing/review status;
 - server name and endpoint;
-- map and mode;
+- IW4MAdmin's friendly map and mode names, with raw game identifiers directly underneath;
 - capture and last-updated time;
 - evidence source and confidence.
 
@@ -61,6 +65,12 @@ Automated-ban cases can also show case-specific anti-cheat snapshots. Metrics pr
 
 ![Match timeline, reports and player anti-cheat metrics](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-timeline-metrics.png)
 
+## Proactive statistical analysis
+
+Proactive cases add an analysis panel containing the 0–100 risk score, risk band and every qualifying indicator. Each indicator includes the observed statistic, its comparable percentile and a plain-language reason it contributed. If a case was created from an ordinary report or ban, it does not pretend that a retrospective proactive assessment exists.
+
+Read [[Proactive Detection|Proactive-Detection]] for sample requirements, supported games and safe threshold tuning.
+
 ## Player actions
 
 The right-hand panel reuses IW4MAdmin's native:
@@ -83,6 +93,8 @@ Moderators can:
 - use quick cheating/not-cheating decisions;
 - mark a case for more review;
 - clear the reports attached to the case.
+
+Owners also see **Delete case permanently**. Deletion requires confirmation and removes the retained case metadata only; it does not reverse player penalties or remove the corresponding Discord message.
 
 ## Metadata-only cases
 

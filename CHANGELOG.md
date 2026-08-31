@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.4.0
+
+- Added explainable, server-aware proactive statistical review using the existing IW4MAdmin player-statistics database.
+- Added live baseline refresh, population/sample safeguards, correlated-signal protection, configurable exclusions, separate case/Discord thresholds and disconnect/match-end evaluation.
+- Added proactive risk scores and contributing indicators to webfront and Discord cases; proactive review never administers a penalty automatically.
+- Redesigned **Cheating Case Review** around compact status queues; retained cases remain hidden until a queue is opened.
+- Moved search and advanced filters into a collapsed, on-demand panel.
+- Added IW4MAdmin-native, game-aware friendly map and mode names while retaining raw identifiers for diagnostics.
+- Added an Owner-only, confirmed permanent case deletion tool.
+- Exempted cases reviewed as **cheating — action taken** from age and capacity retention pruning.
+
 ## 2.3.3
 
 - Added a configurable `TimeZone` setting for webfront and Discord timestamps, defaulting to `Europe/London`.

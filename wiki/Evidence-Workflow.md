@@ -11,7 +11,7 @@ When IW4MAdmin records a report, DemosToDiscord captures:
 - game, map and mode;
 - report time.
 
-Reports for the same player, server, map and mode within the deduplication window are grouped into one case.
+Reports and detections for the same player and match within the deduplication window are grouped into one case.
 
 ## Automated anti-cheat bans
 
@@ -26,6 +26,12 @@ The default list is:
 ## Manual bans
 
 A manual ban does not create a new case by itself. It is linked only to a recent existing case for that client. This prevents a ban issued while reviewing one demo from creating an unrelated case on another server.
+
+## Proactive statistical review
+
+Eligible real-player sessions are evaluated after disconnect or match end when proactive detection is enabled. Only assessments at or above `ProactiveCaseRiskThreshold` create or merge a case. They use the normal demo-search and review pipeline, identify the indicators that contributed, and never administer a penalty automatically. Discord delivery uses the separate `ProactiveDiscordRiskThreshold`.
+
+See [[Proactive Detection|Proactive-Detection]] for safeguards, supported signals and exclusions.
 
 ## Case lifecycle
 
@@ -67,6 +73,6 @@ Cases are retained according to both:
 - `CaseRetentionDays`;
 - `MaxStoredCases`.
 
-The oldest cases are pruned first. See [[Privacy and Data|Privacy-and-Data]] for the retained fields.
+The oldest standard cases are pruned first. Cases reviewed as **cheating — action taken** are exempt from both limits and remain stored until an Owner deliberately deletes them. Deleting a retained case does not reverse player penalties or delete its Discord message. See [[Privacy and Data|Privacy-and-Data]] for the retained fields.
 
 Next: [[Demo Matching|Demo-Matching]] or [[Webfront Guide|Webfront-Guide]].

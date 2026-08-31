@@ -2,6 +2,8 @@
 
 DemosToDiscord keeps the original Plutonium filenames. It does not rename `.demo` or `.json` files, because renaming can prevent downloaded evidence appearing in theatre.
 
+The webfront translates known raw map/mode identifiers through IW4MAdmin's own friendly-name data—for example `mp_hijacked / dm` becomes **Hijacked · Free For All**—but always retains the raw codes underneath. Friendly display names do not change matching.
+
 ## Filename information
 
 Plutonium filenames encode the mode, map and local match start time. Examples:
