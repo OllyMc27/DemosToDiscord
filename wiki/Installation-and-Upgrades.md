@@ -47,7 +47,22 @@ C:\Users\Administrator\AppData\Local\Plutonium\storage\t5\demos
 C:\Users\Administrator\AppData\Local\Plutonium\storage\t6\demos
 ```
 
-Use the actual account and location on your server.
+Those are normal Windows/File Explorer paths. In `DemosToDiscord.json`, write the same paths with **two backslashes** for every one shown above:
+
+```json
+{
+  "T5DemoPath": "C:\\Users\\Administrator\\AppData\\Local\\Plutonium\\storage\\t5\\demos",
+  "T6DemoPath": "C:\\Users\\Administrator\\AppData\\Local\\Plutonium\\storage\\t6\\demos"
+}
+```
+
+Use the actual account and location on your server. The prefix can differ, while the normal path beneath `Plutonium` is `storage\t5\demos` or `storage\t6\demos`.
+
+## Verify demo recording before testing
+
+DemosToDiscord does not create game recordings. [On current Plutonium multiplayer builds, demos are recorded automatically while players are connected](https://plutonium.pw/docs/changelog/); finish a populated match and verify that a new `.demo` appears in the relevant folder. T6 should also create a matching `.json` file.
+
+Do not add `demo_enabled 1` to a T6 server configuration as a fix. [Plutonium's current dvar reference](https://plutonium.pw/docs/server/dvars/) says that setting has no effect. If no file appears after a completed match, update and troubleshoot Plutonium or the selected Windows storage profile before testing the plugin.
 
 ## Upgrading
 

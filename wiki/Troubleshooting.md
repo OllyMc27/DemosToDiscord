@@ -20,6 +20,7 @@
 
 - Wait for the match to end; Plutonium may keep the demo open during play.
 - Confirm the correct T5/T6 path for the IW4MAdmin account.
+- Confirm the JSON path doubles every backslash, for example `"C:\\Users\\Administrator\\AppData\\Local\\Plutonium\\storage\\t6\\demos"`.
 - Confirm a recent filename has the expected map and time.
 - Check `MaxLookbackMinutes` and `MaxWaitMinutes`.
 - Run `!dtdfind <case-id>`.
@@ -30,6 +31,8 @@
 For supported T5/T6 multiplayer:
 
 - verify the demo directory exists;
+- finish a populated match and confirm Plutonium actually writes a new `.demo` file there (plus `.json` for T6);
+- do not rely on T6 `demo_enabled 1`, which Plutonium documents as non-functional;
 - verify the IW4MAdmin account can read it;
 - compare the event time with the filename;
 - verify the map;

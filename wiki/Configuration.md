@@ -38,6 +38,34 @@ The [repository example](https://github.com/OllyMc27/DemosToDiscord/blob/master/
 
 The paths must belong to the Windows account that records the demos. A service account running IW4MAdmin must have read permission.
 
+Windows displays a path with one backslash:
+
+```text
+C:\Users\Administrator\AppData\Local\Plutonium\storage\t6\demos
+```
+
+JSON uses the backslash as an escape character, so **every backslash must be doubled** in `DemosToDiscord.json`:
+
+```json
+{
+  "T5DemoPath": "C:\\Users\\Administrator\\AppData\\Local\\Plutonium\\storage\\t5\\demos",
+  "T6DemoPath": "C:\\Users\\Administrator\\AppData\\Local\\Plutonium\\storage\\t6\\demos"
+}
+```
+
+Do not mix single and doubled backslashes. Everything before `Plutonium` can differ with the Windows account or installation, but the normal remainder is `storage\t5\demos` or `storage\t6\demos`.
+
+#### Confirm that Plutonium is producing demos
+
+DemosToDiscord reads completed files; it does not turn game recording on itself. Before testing the plugin:
+
+1. Keep Plutonium updated.
+2. Complete a T5 or T6 multiplayer match with at least one real player connected.
+3. Confirm a new `.demo` appears in the relevant folder. T6 should also produce a matching `.json` sidecar.
+4. Only then copy that folder into `T5DemoPath` or `T6DemoPath`, using doubled backslashes in JSON.
+
+[Current Plutonium multiplayer builds automatically record while players are connected](https://plutonium.pw/docs/changelog/). Do not rely on adding `demo_enabled 1` to a T6 `server.cfg`: [Plutonium documents that dvar as non-functional](https://plutonium.pw/docs/server/dvars/). If the match produces no file, fix Plutonium recording/storage first; the plugin cannot upload a demo that was never written.
+
 ### Evidence triggers and game support
 
 | Setting | Type | Default | Accepted values and behaviour |
@@ -288,7 +316,8 @@ Restart, reproduce one case, save the relevant log lines, then return `Debug` to
 ## JSON rules and common mistakes
 
 - Use double quotes around properties and string values.
-- Escape Windows path separators as `\\`.
+- Escape every Windows path separator as `\\`: an Explorer path such as `C:\Users\Administrator\...` becomes `"C:\\Users\\Administrator\\..."` in JSON.
+- Do not mix escaped and unescaped separators in the same path.
 - Do not leave a comma after the final property.
 - Keep game codes consistently uppercase for readability.
 - Never expose a complete webhook URL publicly.

@@ -85,14 +85,18 @@ Configured T6 automated anti-cheat bans and proactive statistical reviews can cr
 {
   "Enabled": true,
   "Webhook": "https://discord.com/api/webhooks/...",
-  "T5DemoPath": "C:\\Plutonium\\storage\\t5\\demos",
-  "T6DemoPath": "C:\\Plutonium\\storage\\t6\\demos",
+  "T5DemoPath": "C:\\Users\\Administrator\\AppData\\Local\\Plutonium\\storage\\t5\\demos",
+  "T6DemoPath": "C:\\Users\\Administrator\\AppData\\Local\\Plutonium\\storage\\t6\\demos",
   "TimeZone": "Europe/London",
   "EnableProactiveDetection": true,
   "ProactiveCaseRiskThreshold": 50,
   "ProactiveDiscordRiskThreshold": 65
 }
 ```
+
+Windows paths inside JSON must use **two backslashes** for every one normally shown in File Explorer. For example, the folder `C:\Users\Administrator\AppData\Local\Plutonium\storage\t6\demos` must be written as `"C:\\Users\\Administrator\\AppData\\Local\\Plutonium\\storage\\t6\\demos"`. The Windows account and install prefix may differ; the part after `Plutonium` is normally `storage\t5\demos` or `storage\t6\demos`.
+
+Before relying on evidence uploads, finish a populated Plutonium multiplayer match and confirm that a new `.demo` file appears in the configured folder (plus its `.json` sidecar for T6). [Current Plutonium multiplayer builds record while players are connected](https://plutonium.pw/docs/changelog/); the old T6 `demo_enabled 1` setting is [documented by Plutonium as having no effect](https://plutonium.pw/docs/server/dvars/).
 
 The [complete configuration reference](https://github.com/OllyMc27/DemosToDiscord/wiki/Configuration) covers queue timing, retention, privacy, timezones, capability overrides, Discord routing, server overrides and every supported setting. Set IW4MAdmin's `Webfront.ManualUrl` to its public address to include working case links in Discord.
 
