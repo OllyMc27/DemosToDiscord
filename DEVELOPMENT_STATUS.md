@@ -1,9 +1,11 @@
-# Proactive detection release status
+# Evidence review release status
 
-Version `2.4.0` adds the database-driven detector and redesigned Cheating Case Review workspace. Existing evidence cases remain in
+Version `2.5.0` adds administrator-resolved ServerPulse community signals, optional native flagging after an explicit **Inconclusive** review, and cooldown-protected Discord alerts when flagged players later join.
+
+Version `2.4.0` introduced the database-driven detector and redesigned Cheating Case Review workspace. Existing evidence cases remain in
 `Configuration/DemosToDiscordCases.json`; only a rebuildable compact baseline cache is added.
 
-The current post-2.4 integration branch also accepts administrator-resolved ServerPulse community signals. These are stored and labelled separately from statistical detections. An explicit **Inconclusive** review can optionally apply IW4MAdmin's native `Flagged` level and enable a cooldown-protected Discord alert on a later join.
+ServerPulse signals are stored and labelled separately from statistical detections. Statistical and chat detections remain human-review-only.
 
 ## Implemented
 

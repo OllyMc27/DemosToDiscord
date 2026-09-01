@@ -22,7 +22,7 @@
 The startup console should include a line similar to:
 
 ```text
-[DemosToDiscord] by OllyMc27 loaded. Version: 2.4.0
+[DemosToDiscord] by OllyMc27 loaded. Version: 2.5.0
 ```
 
 ## First-run checks

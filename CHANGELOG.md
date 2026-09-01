@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.5.0
 
 - Added a process-local ServerPulse handoff for administrator-resolved Player Guidance signals, including bounded surrounding chat and the captured player list selection outcome.
 - Kept community accusations separate from statistical risk in retained cases, the webfront and Discord; all such cases require human review.
