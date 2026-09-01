@@ -89,6 +89,12 @@ Proactive cases are posted only when all three conditions are true:
 
 The message identifies the case as proactive, shows the explainable risk score/signals and links to normal human review. It never announces that the player is definitively cheating and never applies a penalty. See [[Proactive Detection|Proactive-Detection]].
 
+## ServerPulse and flagged-player alerts
+
+An administrator-resolved ServerPulse signal creates a normal staff-only evidence message with the accusation, bounded nearby chat and a clear warning that community chat is not proof. It uses the normal server/game/default webhook routing.
+
+When `NotifyDiscordWhenFlaggedPlayerJoins` is enabled, a player whose current IW4MAdmin level is `Flagged` generates a separate live-review alert on authorization. `FlaggedPlayerRoleId` (or its server override) controls the optional role mention, and `FlaggedPlayerJoinAlertCooldownMinutes` prevents repeated join spam. The alert links to the player profile and the most relevant retained case when `Webfront.ManualUrl` is configured.
+
 ![Explainable proactive statistical review in Discord](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-proactive-review.png)
 
 ## Case and profile links

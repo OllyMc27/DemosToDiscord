@@ -6,12 +6,16 @@ public static class EvidenceAssessment
     {
         if (item.AntiCheat is not null && item.Reports.Count > 0)
             return new EvidenceConfidence("Corroborated", "Report and automated detection", 5);
+        if (item.CommunitySignals.Count > 0 && (item.AntiCheat is not null || item.Reports.Count > 0))
+            return new EvidenceConfidence("Corroborated", "Administrator-resolved community signal plus independent evidence", 5);
         if (item.ProactiveDetections.Count > 0 && (item.AntiCheat is not null || item.Reports.Count > 0))
             return new EvidenceConfidence("Corroborated", "Statistical review plus independent evidence", 5);
         if (item.AntiCheat is not null)
             return new EvidenceConfidence("Automated detection", "Anti-cheat evidence captured", 4);
         if (item.Reports.Count > 1)
             return new EvidenceConfidence("Multiple reports", $"{item.Reports.Count} reports grouped", 3);
+        if (item.CommunitySignals.Count > 0)
+            return new EvidenceConfidence("Community signal", "Target resolved by an administrator; human demo review required", 2);
         if (item.ProactiveDetections.MaxBy(detection => detection.RiskScore) is { } proactive)
             return new EvidenceConfidence(
                 $"Proactive {proactive.RiskLevel}",

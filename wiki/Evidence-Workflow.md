@@ -33,6 +33,12 @@ Eligible real-player sessions are evaluated after disconnect or match end when p
 
 See [[Proactive Detection|Proactive-Detection]] for safeguards, supported signals and exclusions.
 
+## ServerPulse community signals
+
+When ServerPulse cannot safely infer the accused player from a cheating-related message, an administrator can open the retained nearby chat and point-in-time player list, select the intended player and choose **Resolve & create review case**. DemosToDiscord stores the bounded context as a `CommunitySignal`, searches for the matching demo and sends the case through the normal review workflow.
+
+This is deliberately separate from proactive statistical risk. The accusation and the administrator's name selection are context for reviewing the demo, not evidence that cheating occurred. Repeating the same handoff is idempotent and returns the existing case.
+
 ## Case lifecycle
 
 1. **Queued** — the case is waiting for a background worker.
@@ -61,6 +67,8 @@ Moderators can assign a case to themselves, record notes and choose:
 - Inconclusive.
 
 The original Discord message is updated when assignment or review state changes. Existing attachments remain on the message.
+
+When `FlagPlayerOnInconclusiveReview` is enabled, choosing **Inconclusive** also creates IW4MAdmin's native Flag event and changes an ordinary player's level to `Flagged`. Privileged, already flagged and banned accounts are not changed. A later join can notify `FlaggedPlayerRoleId` so staff can perform a live review; alerts use the configured per-player cooldown.
 
 ## Clearing reports
 

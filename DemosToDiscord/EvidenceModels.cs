@@ -5,7 +5,8 @@ public enum EvidenceTriggerType
     Report,
     AutomatedBan,
     ManualBan,
-    ProactiveDetection
+    ProactiveDetection,
+    CommunitySignal
 }
 
 public enum EvidenceCaseStatus
@@ -39,7 +40,9 @@ public enum EvidenceHistoryAction
     ReviewChanged,
     ReportsCleared,
     DiscordSynced,
-    ProactiveEvaluated
+    ProactiveEvaluated,
+    CommunitySignalAdded,
+    PlayerFlagged
 }
 
 public enum EvidenceReviewDecision
@@ -71,6 +74,7 @@ public sealed class EvidenceCase
     public AntiCheatEvidence? AntiCheat { get; set; }
     public bool ManualBanObserved { get; set; }
     public List<ProactiveDetectionEvidence> ProactiveDetections { get; set; } = [];
+    public List<CommunitySignalEvidence> CommunitySignals { get; set; } = [];
     public bool DiscordEligible { get; set; }
     public string? DemoFileName { get; set; }
     public long? DemoFileSize { get; set; }
@@ -112,9 +116,23 @@ public sealed class EvidenceCase
                 triggers.Add(EvidenceTriggerType.ManualBan);
             if (ProactiveDetections.Count > 0)
                 triggers.Add(EvidenceTriggerType.ProactiveDetection);
+            if (CommunitySignals.Count > 0)
+                triggers.Add(EvidenceTriggerType.CommunitySignal);
             return triggers;
         }
     }
+}
+
+public sealed class CommunitySignalEvidence
+{
+    public string SourceEventId { get; set; } = string.Empty;
+    public DateTime WhenUtc { get; set; }
+    public string Category { get; set; } = string.Empty;
+    public string Accusation { get; set; } = string.Empty;
+    public List<string> Context { get; set; } = [];
+    public int AdminClientId { get; set; }
+    public string AdminName { get; set; } = string.Empty;
+    public string Notes { get; set; } = string.Empty;
 }
 
 public sealed class ProactiveDetectionEvidence

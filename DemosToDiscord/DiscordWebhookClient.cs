@@ -130,6 +130,64 @@ public sealed class DiscordWebhookClient : IDisposable
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task SendFlaggedPlayerJoinAsync(
+        string webhook,
+        string? roleId,
+        int clientId,
+        long networkId,
+        string playerName,
+        string serverName,
+        string serverId,
+        EvidenceCase? evidenceCase,
+        CancellationToken token)
+    {
+        var validRole = IsDiscordId(roleId) ? roleId : null;
+        var baseUrl = _applicationConfiguration.Webfront?.ManualUrl?.TrimEnd('/') ?? string.Empty;
+        var links = new List<string>();
+        if (!string.IsNullOrWhiteSpace(baseUrl))
+        {
+            links.Add($"[Open player profile]({baseUrl}/Client/Profile/{clientId})");
+            if (evidenceCase is not null && BuildReviewUrl(baseUrl, evidenceCase.Id) is { } reviewUrl)
+                links.Add($"[Open evidence case]({reviewUrl})");
+        }
+        var payload = new
+        {
+            content = validRole is null
+                ? "🚩 **A flagged player joined a monitored server**"
+                : $"<@&{validRole}> 🚩 **A flagged player joined a monitored server**",
+            allowed_mentions = new
+            {
+                parse = Array.Empty<string>(),
+                roles = validRole is null ? Array.Empty<string>() : new[] { validRole }
+            },
+            embeds = new[]
+            {
+                new
+                {
+                    title = $"Live review requested • {DiscordText(playerName)}",
+                    description = evidenceCase is null
+                        ? "This player is currently flagged in IW4MAdmin. Review their live play before taking any further action."
+                        : $"Evidence case `{evidenceCase.Id}` was previously closed as **{EvidenceReviewService.DecisionLabel(evidenceCase.ReviewDecision)}**. Review their live play before taking any further action.",
+                    color = 16753920,
+                    timestamp = DateTime.UtcNow.ToString("O"),
+                    author = new { name = "IW4MAdmin • Flagged Player Alert" },
+                    fields = new object[]
+                    {
+                        new { name = "Player", value = $"**{DiscordText(playerName)}** (`#{clientId}`)\nGUID `{networkId}`", inline = true },
+                        new { name = "Server", value = $"**{DiscordText(serverName)}**\n`{DiscordInlineCode(serverId)}`", inline = true },
+                        new { name = "Admin links", value = links.Count == 0 ? "Open IW4MAdmin to review this player." : string.Join(" • ", links), inline = false }
+                    }
+                }
+            }
+        };
+        using var content = new StringContent(JsonSerializer.Serialize(payload, _jsonOptions), Encoding.UTF8,
+            "application/json");
+        using var response = await _http.PostAsync(WithWait(webhook), content, token);
+        var responseJson = await response.Content.ReadAsStringAsync(token);
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException($"Discord flagged-player alert returned {(int)response.StatusCode}: {responseJson}");
+    }
+
     internal object BuildEmbed(EvidenceCase evidenceCase, string? demoPath, string? jsonPath)
     {
         var baseUrl = _applicationConfiguration.Webfront?.ManualUrl?.TrimEnd('/') ?? string.Empty;
@@ -169,6 +227,8 @@ public sealed class DiscordWebhookClient : IDisposable
             evidenceSources.Add("manual ban");
         if (evidenceCase.ProactiveDetections.Count > 0)
             evidenceSources.Add("proactive statistical review");
+        if (evidenceCase.CommunitySignals.Count > 0)
+            evidenceSources.Add("administrator-resolved ServerPulse community signal");
         fields.Add(new
         {
             name = "Evidence source",
@@ -252,6 +312,25 @@ public sealed class DiscordWebhookClient : IDisposable
             fields.Add(new { name = "Proactive detection", value = Limit(string.Join("\n", lines), 1024), inline = false });
         }
 
+        if (evidenceCase.CommunitySignals.Count > 0)
+        {
+            var signal = evidenceCase.CommunitySignals.OrderByDescending(item => item.WhenUtc).First();
+            var lines = new List<string>
+            {
+                $"**{DiscordText(signal.Category)}:** {DiscordText(signal.Accusation)}",
+                $"Resolved by **{DiscordText(signal.AdminName)}** for human review; this is context, not proof of cheating."
+            };
+            lines.AddRange(signal.Context.Take(8).Select(item => $"• {DiscordText(item)}"));
+            if (!string.IsNullOrWhiteSpace(signal.Notes))
+                lines.Add($"Admin note: {DiscordText(signal.Notes)}");
+            fields.Add(new
+            {
+                name = "ServerPulse community signal",
+                value = Limit(string.Join("\n", lines), 1024),
+                inline = false
+            });
+        }
+
         if (reviewUrl is not null || profileUrl is not null)
         {
             var links = new List<string>();
@@ -264,6 +343,8 @@ public sealed class DiscordWebhookClient : IDisposable
 
         var title = evidenceCase.AntiCheat is not null
             ? $"Anti-cheat evidence • {DiscordText(evidenceCase.TargetName)}"
+            : evidenceCase.CommunitySignals.Count > 0
+                ? $"Community signal review • {DiscordText(evidenceCase.TargetName)}"
             : evidenceCase.ProactiveDetections.Count > 0
                 ? $"Proactive review • {DiscordText(evidenceCase.TargetName)}"
             : $"Report evidence • {DiscordText(evidenceCase.TargetName)}";
@@ -313,6 +394,8 @@ public sealed class DiscordWebhookClient : IDisposable
             return "📋 **New metadata-only evidence is ready for review**";
         if (evidenceCase.AntiCheat is not null)
             return "🛡️ **New anti-cheat evidence is ready for review**";
+        if (evidenceCase.CommunitySignals.Count > 0)
+            return "💬 **An administrator resolved a community signal for proactive human review**";
         if (evidenceCase.ProactiveDetections.Count > 0 && evidenceCase.Reports.Count == 0)
             return "🔎 **Proactive statistical evidence is ready for human review**";
         return hasDemo
@@ -400,6 +483,8 @@ public sealed class DiscordWebhookClient : IDisposable
             lines.Add($"➡️ Player joined — **{EvidenceTime.Format(evidenceCase.PlayerJoinedAtUtc)} {EvidenceTime.Label}** ({EvidenceTime.MatchOffset(evidenceCase.PlayerJoinedAtUtc.Value, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
         foreach (var report in evidenceCase.Reports.OrderBy(item => item.WhenUtc).Take(5))
             lines.Add($"🚩 Reported — **{EvidenceTime.Format(report.WhenUtc)} {EvidenceTime.Label}** ({EvidenceTime.MatchOffset(report.WhenUtc, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
+        foreach (var signal in evidenceCase.CommunitySignals.OrderBy(item => item.WhenUtc).Take(3))
+            lines.Add($"💬 Community signal resolved — **{EvidenceTime.Format(signal.WhenUtc)} {EvidenceTime.Label}** ({EvidenceTime.MatchOffset(signal.WhenUtc, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
         if (evidenceCase.PlayerLeftAtUtc is not null)
             lines.Add($"⬅️ Player left — **{EvidenceTime.Format(evidenceCase.PlayerLeftAtUtc)} {EvidenceTime.Label}** ({EvidenceTime.MatchOffset(evidenceCase.PlayerLeftAtUtc.Value, evidenceCase.DemoStartedAtUtc).ToLowerInvariant()})");
         return Limit(lines.Count == 0 ? "Timeline data is not available for this case." : string.Join("\n", lines), 1024);
@@ -416,6 +501,7 @@ public sealed class DiscordWebhookClient : IDisposable
         EvidenceReviewDecision.NotCheatingNoAction => 5763719,
         EvidenceReviewDecision.NeedsMoreReview or EvidenceReviewDecision.Inconclusive => 16776960,
         _ => evidenceCase.AntiCheat is not null ? 15548997 :
+            evidenceCase.CommunitySignals.Count > 0 ? 16753920 :
             evidenceCase.ProactiveDetections.MaxBy(item => item.RiskScore) is { } proactive
                 ? proactive.RiskScore >= 80 ? 15548997 : proactive.RiskScore >= 65 ? 16753920 : 16776960
                 : 5793266

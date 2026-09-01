@@ -252,6 +252,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
             .Append("<div class=\"dtd-detail-layout\"><main class=\"min-w-0 space-y-5\">")
             .Append(ReviewBanner(evidenceCase))
             .Append(ReviewSummarySection(evidenceCase))
+            .Append(CommunitySignalSection(evidenceCase))
             .Append(ProactiveAnalysisSection(evidenceCase))
             .Append(ReportsSection(evidenceCase))
             .Append(AntiCheatSection(evidenceCase, metrics))
@@ -397,6 +398,14 @@ public sealed class DemosToDiscordWebfront : IDisposable
                 "ph-flag",
                 $"{report.ReporterName}: {report.Reason}"));
 
+        foreach (var signal in evidenceCase.CommunitySignals.OrderBy(item => item.WhenUtc))
+            builder.Append(TimelineRow(
+                "Community signal resolved",
+                signal.WhenUtc,
+                evidenceCase.DemoStartedAtUtc,
+                "ph-chats-circle",
+                $"{signal.AdminName} matched a {signal.Category} message to this player"));
+
         if (evidenceCase.AntiCheat is not null)
             builder.Append(TimelineRow("Anti-cheat ban", evidenceCase.AntiCheat.WhenUtc, evidenceCase.DemoStartedAtUtc, "ph-shield-warning", evidenceCase.AntiCheat.Detection));
 
@@ -503,6 +512,36 @@ public sealed class DemosToDiscordWebfront : IDisposable
         }
         builder.Append($"</div><div class=\"mt-4 flex flex-col gap-1 border-t border-line pt-4 text-xs text-muted sm:flex-row sm:items-center sm:justify-between\"><span>Evaluation trigger: {Encode(string.IsNullOrWhiteSpace(assessment.EvaluationReason) ? "proactive evaluation" : assessment.EvaluationReason)}</span><span>Assessed {Encode(EvidenceTime.Format(assessment.WhenUtc))}</span></div><p class=\"mt-3 text-xs text-muted\">Human review is required. DemosToDiscord does not automatically punish a player from this assessment.</p></div></section>");
         return builder.ToString();
+    }
+
+    private static string CommunitySignalSection(EvidenceCase evidenceCase)
+    {
+        if (evidenceCase.CommunitySignals.Count == 0)
+            return string.Empty;
+        var builder = new StringBuilder("<section id=\"community-signal\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-primary/30 bg-surface shadow-sm\"><div class=\"border-b border-line px-5 py-4\"><h3 class=\"font-semibold text-foreground\">ServerPulse community signal</h3><p class=\"mt-0.5 text-sm text-muted\">An administrator matched chat context to this player. It is a prompt for human demo review, not proof or an automatic punishment.</p></div><div class=\"divide-y divide-line\">");
+        foreach (var signal in evidenceCase.CommunitySignals.OrderByDescending(item => item.WhenUtc))
+        {
+            builder.Append("<article class=\"space-y-3 p-5\"><div class=\"flex flex-wrap items-center justify-between gap-2\"><div><span class=\"rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-300\">")
+                .Append(Encode(signal.Category))
+                .Append("</span><span class=\"ml-2 text-sm text-muted\">resolved by ")
+                .Append(Encode(signal.AdminName))
+                .Append("</span></div><time class=\"text-xs text-muted\">")
+                .Append(Encode(EvidenceTime.Format(signal.WhenUtc)))
+                .Append("</time></div><blockquote class=\"border-l-2 border-primary pl-4 text-sm text-foreground\">“")
+                .Append(Encode(signal.Accusation))
+                .Append("”</blockquote>");
+            if (signal.Context.Count > 0)
+            {
+                builder.Append("<details class=\"rounded-lg border border-line bg-surface-alt/20\"><summary class=\"cursor-pointer px-3 py-2 text-sm font-medium text-foreground\">Surrounding chat context</summary><div class=\"space-y-1 border-t border-line p-3 text-sm text-muted\">");
+                foreach (var line in signal.Context.Take(20))
+                    builder.Append("<div class=\"break-words\">").Append(Encode(line)).Append("</div>");
+                builder.Append("</div></details>");
+            }
+            if (!string.IsNullOrWhiteSpace(signal.Notes))
+                builder.Append("<div class=\"text-sm text-muted\"><strong class=\"text-foreground\">Admin note:</strong> ").Append(Encode(signal.Notes)).Append("</div>");
+            builder.Append("</article>");
+        }
+        return builder.Append("</div></section>").ToString();
     }
 
     private static string FormatProactiveValue(ProactiveRiskSignal signal, double value) => signal.Metric switch
@@ -735,7 +774,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         var builder = new StringBuilder($"<form data-enhance-nav=\"false\" method=\"get\" action=\"/Interaction/Render/{InteractionKey}\" class=\"grid gap-3 border-b border-line bg-surface-alt/10 px-4 py-4 md:grid-cols-2 xl:grid-cols-4\"><input type=\"hidden\" name=\"view\" value=\"{Encode(view)}\"><label class=\"xl:col-span-2\"><span class=\"mb-1 block text-xs font-semibold uppercase tracking-wide text-muted\">Search</span><div class=\"flex items-center rounded-lg border border-line bg-surface px-3\"><i class=\"ph ph-magnifying-glass text-muted\"></i><input name=\"q\" value=\"{Encode(Meta(meta, "q"))}\" placeholder=\"Player, case, GUID, map or server\" class=\"w-full border-0 bg-transparent px-2 py-2 text-sm text-foreground outline-none\"></div></label>");
         builder.Append(SelectFilter("game", "Game", Meta(meta, "game"), new[] { ("", "All games") }.Concat(games.Select(item => (item, item)))))
             .Append(SelectFilter("server", "Server", Meta(meta, "server"), new[] { ("", "All servers") }.Concat(servers.Select(item => (item.ServerId, item.ServerName)))))
-            .Append(SelectFilter("source", "Evidence source", Meta(meta, "source"), new[] { ("", "All sources"), ("report", "Player report"), ("proactive", "Proactive detection"), ("anticheat", "Anti-cheat"), ("manual", "Manual ban") }))
+            .Append(SelectFilter("source", "Evidence source", Meta(meta, "source"), new[] { ("", "All sources"), ("report", "Player report"), ("community", "ServerPulse community signal"), ("proactive", "Proactive detection"), ("anticheat", "Anti-cheat"), ("manual", "Manual ban") }))
             .Append(SelectFilter("demo", "Demo state", Meta(meta, "demo"), new[] { ("", "Any demo state"), ("uploaded", "Uploaded"), ("unsupported", "Not supported"), ("missing", "Expected but missing"), ("processing", "Processing"), ("failed", "Failed") }))
             .Append(SelectFilter("review", "Review state", Meta(meta, "review"), new[] { ("", "Any review state"), ("Unreviewed", "Unreviewed"), ("NeedsMoreReview", "Needs more review"), ("CheatingActionTaken", "Cheating, action taken"), ("CheatingNoAction", "Cheating, no action"), ("NotCheatingNoAction", "Not cheating"), ("Inconclusive", "Inconclusive") }))
             .Append(DateFilter("from", "Captured from", Meta(meta, "from")))
@@ -817,6 +856,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         cases = Meta(meta, "source").ToLowerInvariant() switch
         {
             "report" => cases.Where(item => item.Reports.Count > 0),
+            "community" => cases.Where(item => item.CommunitySignals.Count > 0),
             "proactive" => cases.Where(item => item.ProactiveDetections.Count > 0),
             "anticheat" => cases.Where(item => item.AntiCheat is not null),
             "manual" => cases.Where(item => item.ManualBanObserved),
@@ -948,6 +988,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         EvidenceTriggerType.AutomatedBan => "Anti-cheat",
         EvidenceTriggerType.ManualBan => "Manual ban",
         EvidenceTriggerType.ProactiveDetection => "Proactive detection",
+        EvidenceTriggerType.CommunitySignal => "ServerPulse community signal",
         _ => "Report"
     };
 

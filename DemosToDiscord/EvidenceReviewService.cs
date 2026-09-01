@@ -15,6 +15,7 @@ public sealed class EvidenceReviewService(
     DemosToDiscordConfig config,
     EvidenceCaseStore store,
     DemoUploadService uploadService,
+    FlaggedPlayerReviewService flaggedPlayers,
     ILogger<EvidenceReviewService> logger)
 {
     public async Task<bool> CanDeleteAsync(int originId)
@@ -131,6 +132,9 @@ public sealed class EvidenceReviewService(
         var clearedCount = clearReports
             ? await ClearReportsAsync(manager, evidenceCase, origin.ClientId, originName, token)
             : 0;
+        var flagResult = decision == EvidenceReviewDecision.Inconclusive
+            ? await flaggedPlayers.FlagAfterInconclusiveAsync(manager, evidenceCase, origin, token)
+            : null;
         await store.UpdateAsync(caseId, item =>
         {
             item.ReviewDecision = decision;
@@ -155,9 +159,10 @@ public sealed class EvidenceReviewService(
         logger.LogInformation(
             "[DemosToDiscord] Case {CaseId} reviewed as {Decision} by {Reviewer}; cleared {ReportCount} report(s)",
             caseId, decision, origin.ClientId, clearedCount);
-        return clearReports
+        var response = clearReports
             ? $"Case marked {DecisionLabel(decision)} and {clearedCount} active report(s) cleared."
             : $"Case marked {DecisionLabel(decision)}.";
+        return string.IsNullOrWhiteSpace(flagResult) ? response : $"{response} {flagResult}";
     }
 
     private async Task<int> ClearReportsAsync(

@@ -227,6 +227,94 @@ public sealed class EvidenceCaseStore
         }
     }
 
+    public async Task<(EvidenceCase Case, bool Created, bool NeedsUpload)> AddOrMergeCommunitySignalAsync(
+        ServerPulseCaseRequest request,
+        CancellationToken token)
+    {
+        await InitializeAsync(token);
+        await _gate.WaitAsync(token);
+        try
+        {
+            var duplicateCase = _cases.FirstOrDefault(item => item.CommunitySignals.Any(signal =>
+                signal.SourceEventId.Equals(request.SourceEventId, StringComparison.OrdinalIgnoreCase)));
+            if (duplicateCase is not null)
+                return (Clone(duplicateCase), false, NeedsEvidenceProcessing(duplicateCase));
+
+            var whenUtc = request.CapturedAtUtc.Kind == DateTimeKind.Utc
+                ? request.CapturedAtUtc
+                : request.CapturedAtUtc.ToUniversalTime();
+            var cutoff = whenUtc.AddMinutes(-Math.Max(1, _config.DeduplicationWindowMinutes));
+            var evidenceCase = _cases
+                .Where(item => item.TargetClientId == request.TargetClientId &&
+                               item.ServerId.Equals(request.ServerId, StringComparison.OrdinalIgnoreCase) &&
+                               item.Map.Equals(request.Map, StringComparison.OrdinalIgnoreCase) &&
+                               item.Mode.Equals(request.Mode, StringComparison.OrdinalIgnoreCase) &&
+                               item.CreatedAtUtc >= cutoff &&
+                               item.CreatedAtUtc <= whenUtc.AddMinutes(5))
+                .OrderByDescending(item => item.CreatedAtUtc)
+                .FirstOrDefault();
+            var created = evidenceCase is null;
+            if (evidenceCase is null)
+            {
+                evidenceCase = new EvidenceCase
+                {
+                    CreatedAtUtc = whenUtc,
+                    UpdatedAtUtc = whenUtc,
+                    ServerId = request.ServerId,
+                    ServerName = request.ServerName,
+                    LegacyServerId = request.LegacyServerId,
+                    Game = request.Game,
+                    Map = request.Map,
+                    Mode = request.Mode,
+                    TargetClientId = request.TargetClientId,
+                    TargetNetworkId = request.TargetNetworkId,
+                    TargetName = request.TargetName
+                };
+                evidenceCase.History.Add(new EvidenceHistoryEntry
+                {
+                    WhenUtc = whenUtc,
+                    Action = EvidenceHistoryAction.Created,
+                    AdminClientId = request.AdminClientId,
+                    AdminName = request.AdminName,
+                    Summary = "Case created from an administrator-resolved ServerPulse community signal."
+                });
+                _cases.Add(evidenceCase);
+            }
+
+            evidenceCase.CommunitySignals.Add(new CommunitySignalEvidence
+            {
+                SourceEventId = request.SourceEventId,
+                WhenUtc = whenUtc,
+                Category = request.Category,
+                Accusation = request.Accusation,
+                Context = request.Context.Take(20).ToList(),
+                AdminClientId = request.AdminClientId,
+                AdminName = request.AdminName,
+                Notes = request.Notes
+            });
+            evidenceCase.DiscordEligible = true;
+            evidenceCase.UpdatedAtUtc = DateTime.UtcNow;
+            evidenceCase.ServerName = request.ServerName;
+            evidenceCase.TargetName = request.TargetName;
+            evidenceCase.History.Add(new EvidenceHistoryEntry
+            {
+                WhenUtc = DateTime.UtcNow,
+                Action = EvidenceHistoryAction.CommunitySignalAdded,
+                AdminClientId = request.AdminClientId,
+                AdminName = request.AdminName,
+                Summary = $"ServerPulse {request.Category} signal manually resolved to {request.TargetName}; human review required.",
+                Notes = request.Notes
+            });
+            PruneUnsafe();
+            await SaveUnsafeAsync(token);
+            return (Clone(evidenceCase), created, created || NeedsEvidenceProcessing(evidenceCase));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public int CountProactiveHistory(int targetClientId)
     {
         _gate.Wait();
@@ -366,6 +454,7 @@ public sealed class EvidenceCaseStore
             item.Reports ??= [];
             item.History ??= [];
             item.ProactiveDetections ??= [];
+            item.CommunitySignals ??= [];
         }
 
         var cutoff = DateTime.UtcNow.AddDays(-Math.Max(1, _config.CaseRetentionDays));
@@ -408,7 +497,19 @@ public sealed class EvidenceCaseStore
         EvidenceTriggerType.AutomatedBan => "an automated anti-cheat ban",
         EvidenceTriggerType.ManualBan => "a manual ban",
         EvidenceTriggerType.ProactiveDetection => "proactive statistical review",
+        EvidenceTriggerType.CommunitySignal => "an administrator-resolved ServerPulse community signal",
         _ => "evidence"
     };
+
+    private static bool NeedsEvidenceProcessing(EvidenceCase evidenceCase)
+    {
+        if (evidenceCase.Status is EvidenceCaseStatus.Queued or EvidenceCaseStatus.Searching or
+            EvidenceCaseStatus.Uploading)
+            return false;
+
+        return evidenceCase.Status is EvidenceCaseStatus.NoDemo or EvidenceCaseStatus.Failed or
+                   EvidenceCaseStatus.DemoReady or EvidenceCaseStatus.DemoUnsupported ||
+               evidenceCase.DiscordEligible && string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId);
+    }
 }
 

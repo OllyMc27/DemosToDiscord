@@ -14,6 +14,7 @@ public sealed class Plugin : IPluginV2
     private readonly ProactiveBaselineService _proactiveBaselines;
     private readonly ProactiveEvaluationScheduler _proactiveScheduler;
     private readonly DemosToDiscordWebfront _webfront;
+    private readonly FlaggedPlayerReviewService _flaggedPlayers;
     private readonly DemosToDiscordConfig _config;
     private readonly ILogger<Plugin> _logger;
     private bool _disposed;
@@ -38,6 +39,7 @@ public sealed class Plugin : IPluginV2
         services.AddSingleton<IProactiveAssessmentSink>(provider => provider.GetRequiredService<ProactiveEvidenceIntegration>());
         services.AddSingleton<PlayerTimelineService>();
         services.AddSingleton<EvidenceReviewService>();
+        services.AddSingleton<FlaggedPlayerReviewService>();
         services.AddSingleton<DemoUploadService>();
         services.AddSingleton<DemosToDiscordWebfront>();
     }
@@ -47,12 +49,14 @@ public sealed class Plugin : IPluginV2
         DemosToDiscordWebfront webfront,
         ProactiveBaselineService proactiveBaselines,
         ProactiveEvaluationScheduler proactiveScheduler,
+        FlaggedPlayerReviewService flaggedPlayers,
         DemosToDiscordConfig config,
         ILogger<Plugin> logger)
     {
         _service = service;
         _proactiveBaselines = proactiveBaselines;
         _proactiveScheduler = proactiveScheduler;
+        _flaggedPlayers = flaggedPlayers;
         _webfront = webfront;
         _config = config;
         _logger = logger;
@@ -62,6 +66,7 @@ public sealed class Plugin : IPluginV2
 
         IManagementEventSubscriptions.ClientPenaltyAdministered += OnClientPenaltyAdministered;
         IManagementEventSubscriptions.ClientStateDisposed += OnClientStateDisposed;
+        IManagementEventSubscriptions.ClientStateAuthorized += OnClientStateAuthorized;
         IGameEventSubscriptions.MatchEnded += OnMatchEnded;
         IManagementEventSubscriptions.Load += OnLoad;
         _webfront.Register();
@@ -72,6 +77,7 @@ public sealed class Plugin : IPluginV2
     private async Task OnLoad(IManager _, CancellationToken token)
     {
         await _service.StartAsync(token);
+        ServerPulseIntegrationBridge.Register(_service.CaptureServerPulseAsync);
         await _proactiveBaselines.StartAsync(token);
         Console.WriteLine($"[{Name}] by {Author} loaded. Version: {Version}");
         Console.WriteLine($"[{Name}] report evidence: {(_config.UploadOnReports ? "enabled" : "disabled")}; anti-cheat evidence: {(_config.UploadOnAutomatedBans ? string.Join(", ", _config.AutomatedBanGames) : "disabled")}");
@@ -101,6 +107,9 @@ public sealed class Plugin : IPluginV2
             _proactiveScheduler.Schedule(CreateEvaluation(client, server, "client disconnect"));
         return Task.CompletedTask;
     }
+
+    private Task OnClientStateAuthorized(ClientStateAuthorizeEvent clientEvent, CancellationToken token) =>
+        _flaggedPlayers.NotifyJoinAsync(clientEvent, token);
 
     private Task OnMatchEnded(MatchEndEvent matchEvent, CancellationToken token)
     {
@@ -146,6 +155,11 @@ public sealed class Plugin : IPluginV2
         config.ProactiveExcludedServerIds ??= [];
         if (string.IsNullOrWhiteSpace(config.ProactiveBaselineStateFilePath))
             config.ProactiveBaselineStateFilePath = "Configuration/DemosToDiscordProactiveBaselines.json";
+        config.FlaggedPlayerRoleId ??= string.Empty;
+        config.FlaggedPlayerJoinAlertCooldownMinutes = Math.Clamp(
+            config.FlaggedPlayerJoinAlertCooldownMinutes, 1, 1440);
+        foreach (var serverOverride in config.ServerOverrides.Values)
+            serverOverride.FlaggedPlayerRoleId ??= string.Empty;
     }
 
     public void Dispose()
@@ -155,9 +169,11 @@ public sealed class Plugin : IPluginV2
         _disposed = true;
         IManagementEventSubscriptions.ClientPenaltyAdministered -= OnClientPenaltyAdministered;
         IManagementEventSubscriptions.ClientStateDisposed -= OnClientStateDisposed;
+        IManagementEventSubscriptions.ClientStateAuthorized -= OnClientStateAuthorized;
         IGameEventSubscriptions.MatchEnded -= OnMatchEnded;
         IManagementEventSubscriptions.Load -= OnLoad;
         _webfront.Dispose();
+        ServerPulseIntegrationBridge.Unregister();
         _service.Dispose();
         _proactiveScheduler.Dispose();
         _proactiveBaselines.Dispose();

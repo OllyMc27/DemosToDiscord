@@ -71,6 +71,12 @@ Proactive cases add an analysis panel containing the 0–100 risk score, risk ba
 
 Read [[Proactive Detection|Proactive-Detection]] for sample requirements, supported games and safe threshold tuning.
 
+## ServerPulse community-signal context
+
+Cases created from a manually resolved Player Guidance signal show the accusation, resolving administrator, bounded nearby chat and any review note in a dedicated panel. These cases use the same demo, assignment and decision controls, but they are labelled **ServerPulse community signal** rather than proactive statistical risk.
+
+If **Inconclusive** is selected and `FlagPlayerOnInconclusiveReview` is enabled, the result confirms whether IW4MAdmin accepted the native Flag event. The case history records a successful level change.
+
 ## Player actions
 
 The right-hand panel reuses IW4MAdmin's native:

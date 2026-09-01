@@ -125,6 +125,18 @@ These settings control human-review suggestions built from IW4MAdmin's existing 
 | `ProactiveEvaluationDeduplicationMinutes` | Integer | `30` | Suppresses repeated evaluation of the same player/server session window. |
 | `ProactiveEvaluationQueueCapacity` | Integer | `1000` | Maximum pending background evaluations; keep comfortably above peak disconnect volume. |
 
+### ServerPulse handoff and flagged-player live review
+
+ServerPulse community signals are accepted only after an administrator resolves the accused player. They are labelled separately from statistical detections and never constitute proof by themselves.
+
+| Setting | Type | Default | Accepted values and behaviour |
+|---|---|---:|---|
+| `AcceptServerPulseCases` | Boolean | `true` | Accepts explicit administrator-resolved Player Guidance handoffs from a compatible ServerPulse plugin. |
+| `FlagPlayerOnInconclusiveReview` | Boolean | `true` | Uses IW4MAdmin's native Flag event when an administrator closes a case as **Inconclusive**. Statistical detection alone cannot call this action. |
+| `NotifyDiscordWhenFlaggedPlayerJoins` | Boolean | `true` | Sends a live-review alert when any IW4MAdmin `Flagged` player joins a monitored server. |
+| `FlaggedPlayerJoinAlertCooldownMinutes` | Integer | `15` | Per-player Discord alert cooldown; clamped to 1–1,440 minutes. |
+| `FlaggedPlayerRoleId` | String | Empty | Numeric Discord role ID mentioned by flagged-player join alerts. Empty disables the mention. |
+
 ### Discord delivery
 
 | Setting | Type | Default | Accepted values and behaviour |
@@ -150,6 +162,8 @@ These settings control human-review suggestions built from IW4MAdmin's existing 
 | `SendMetadataOnlyCasesToDiscord` | Nullable Boolean | Overrides metadata-only Discord delivery. |
 | `ReportRoleId` | String | Overrides the report role ID. |
 | `AntiCheatRoleId` | String | Overrides the anti-cheat role ID. |
+| `AcceptServerPulseCases` | Nullable Boolean | Enables/disables manual ServerPulse case handoff for this server. |
+| `FlaggedPlayerRoleId` | String | Overrides the flagged-player live-review role ID. |
 
 Server override selection: exact endpoint → legacy server ID → `"*"` fallback → global settings.
 
@@ -200,6 +214,11 @@ Webhook selection: server override → `GameWebhooks` → default `Webhook`.
   "ProactiveEvaluationDelaySeconds": 20,
   "ProactiveEvaluationDeduplicationMinutes": 30,
   "ProactiveEvaluationQueueCapacity": 1000,
+  "AcceptServerPulseCases": true,
+  "FlagPlayerOnInconclusiveReview": true,
+  "NotifyDiscordWhenFlaggedPlayerJoins": true,
+  "FlaggedPlayerJoinAlertCooldownMinutes": 15,
+  "FlaggedPlayerRoleId": "",
   "SendMetadataOnlyCasesToDiscord": true,
   "ReportRoleId": "",
   "AntiCheatRoleId": "",
@@ -216,7 +235,9 @@ Webhook selection: server override → `GameWebhooks` → default `Webhook`.
       "SupportsDemos": true,
       "SendMetadataOnlyCasesToDiscord": true,
       "ReportRoleId": "",
-      "AntiCheatRoleId": ""
+      "AntiCheatRoleId": "",
+      "AcceptServerPulseCases": true,
+      "FlaggedPlayerRoleId": ""
     }
   }
 }

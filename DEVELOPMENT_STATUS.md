@@ -3,6 +3,8 @@
 Version `2.4.0` adds the database-driven detector and redesigned Cheating Case Review workspace. Existing evidence cases remain in
 `Configuration/DemosToDiscordCases.json`; only a rebuildable compact baseline cache is added.
 
+The current post-2.4 integration branch also accepts administrator-resolved ServerPulse community signals. These are stored and labelled separately from statistical detections. An explicit **Inconclusive** review can optionally apply IW4MAdmin's native `Flagged` level and enable a cooldown-protected Discord alert on a later join.
+
 ## Implemented
 
 - Live IW4MAdmin database bootstrap and incremental baseline refresh.
@@ -16,7 +18,7 @@ Version `2.4.0` adds the database-driven detector and redesigned Cheating Case R
 
 ## Current limitations
 
-- No automatic punishment is implemented by design.
+- Statistical and chat detection never punish automatically. Native flagging occurs only after an administrator explicitly records an **Inconclusive** case decision and the option is enabled.
 - T5 Zombies is excluded because its population is not comparable to multiplayer.
 - Exact accuracy is unavailable because shots fired is not persisted.
 - The detector uses the existing shared case workflow rather than a separate review board.

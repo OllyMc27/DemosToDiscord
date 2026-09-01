@@ -159,6 +159,36 @@ public sealed class DemoUploadService : IDisposable
             trigger, result.Case.Id, result.Case.TargetName, game, result.Case.ServerName);
     }
 
+    public async Task<string> CaptureServerPulseAsync(ServerPulseCaseRequest request, CancellationToken token)
+    {
+        if (!_config.Enabled || !_config.AcceptServerPulseCases)
+            throw new InvalidOperationException("ServerPulse case intake is disabled in DemosToDiscord configuration.");
+        if (request.TargetClientId <= 0 || request.TargetNetworkId <= 0 || string.IsNullOrWhiteSpace(request.TargetName))
+            throw new ArgumentException("ServerPulse did not provide a valid resolved target.");
+        var serverOverride = ResolveOverride(request.ServerId, request.LegacyServerId);
+        if (serverOverride?.Enabled == false || serverOverride?.AcceptServerPulseCases == false)
+            throw new InvalidOperationException("ServerPulse case intake is disabled for this server.");
+
+        var result = await _store.AddOrMergeCommunitySignalAsync(request, token);
+        var capability = EvidenceAssessment.DemoCapability(result.Case, _config, serverOverride);
+        await _store.UpdateAsync(result.Case.Id, item =>
+        {
+            item.DemoSupport = capability.Status;
+            item.DemoSupportReason = capability.Reason;
+            item.DiscordEligible = true;
+        }, token);
+        var current = _store.Get(result.Case.Id)!;
+        if (result.NeedsUpload)
+            await QueueCaseAsync(current.Id, token);
+        else if (!string.IsNullOrWhiteSpace(current.DiscordMessageId))
+            await UpdateCaseDiscordAsync(current.Id, token);
+
+        _logger.LogWarning(
+            "[DemosToDiscord] ServerPulse event {SourceEventId} created or updated review case {CaseId} for client {ClientId}",
+            request.SourceEventId, current.Id, request.TargetClientId);
+        return current.Id;
+    }
+
     public EvidenceStoreSnapshot GetSnapshot() => _store.Snapshot();
     public EvidenceCase? GetCase(string id) => _store.Get(id);
 
@@ -415,6 +445,16 @@ public sealed class DemoUploadService : IDisposable
                !string.IsNullOrWhiteSpace(gameWebhook)
             ? gameWebhook
             : _config.Webhook;
+    }
+
+    internal string? ResolveFlaggedPlayerRoleId(string serverId, long? legacyServerId)
+    {
+        var serverOverride = ResolveOverride(serverId, legacyServerId);
+        return !string.IsNullOrWhiteSpace(serverOverride?.FlaggedPlayerRoleId)
+            ? serverOverride.FlaggedPlayerRoleId
+            : !string.IsNullOrWhiteSpace(_config.FlaggedPlayerRoleId)
+                ? _config.FlaggedPlayerRoleId
+                : null;
     }
 
     public async Task<bool> UpdateCaseDiscordAsync(string caseId, CancellationToken token)

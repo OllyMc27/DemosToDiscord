@@ -8,6 +8,7 @@
 - server name, endpoint, game, map and mode;
 - report times, reporter details and optionally reasons;
 - anti-cheat detection labels and penalty references;
+- administrator-resolved ServerPulse accusation text, bounded nearby chat context and the resolving administrator's note;
 - original demo filename, file size and timing metadata;
 - Discord message, channel and guild identifiers;
 - assignment, reviewer, decision, notes and audit history.
@@ -22,7 +23,7 @@ The plugin does not store:
 - raw T6 JSON contents;
 - permanent copies of Discord CDN URLs;
 - webhook secrets inside the case file;
-- raw player chat unrelated to a report.
+- raw player chat unrelated to the administrator-reviewed ServerPulse context window.
 
 Demo and JSON contents remain in their original Plutonium folders and Discord attachments.
 
@@ -51,6 +52,8 @@ If a webhook URL is exposed, delete or regenerate the webhook in Discord and upd
 ## Protect the Discord channel
 
 Evidence messages can reveal player identifiers, reporter information and server endpoints. Use a restricted staff channel with appropriate retention and access policies.
+
+ServerPulse community-signal context is copied only after an administrator chooses to create a DemosToDiscord case. Keep Cheating Case Review and its Discord destination staff-only.
 
 ## Screenshots and support logs
 

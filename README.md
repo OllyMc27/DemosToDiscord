@@ -4,6 +4,8 @@
 
 DemosToDiscord connects [IW4MAdmin](https://github.com/RaidMax/IW4M-Admin), Plutonium match recordings and Discord. It finds the relevant demo, groups reports and detections into one case, and gives moderators a focused review workflow inside the IW4MAdmin webfront.
 
+With [ServerPulse](https://github.com/OllyMc27/ServerPulse) installed, moderators can inspect an unresolved cheating accusation with its nearby chat and match roster, identify the intended player, and create a normal evidence case. Community chat remains a human-review signal rather than proof. An inconclusive case can optionally flag the player in IW4MAdmin and alert Discord when they next join for live review.
+
 [Download the latest release](https://github.com/OllyMc27/DemosToDiscord/releases/latest) · [Installation](https://github.com/OllyMc27/DemosToDiscord/wiki/Installation-and-Upgrades) · [Documentation](https://github.com/OllyMc27/DemosToDiscord/wiki)
 
 ![Cheating Case Review overview](docs/images/webfront-v2-4-overview.png)

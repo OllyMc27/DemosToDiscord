@@ -53,6 +53,14 @@ public sealed class DemosToDiscordConfig
     public int ProactiveEvaluationDeduplicationMinutes { get; set; } = 30;
     public int ProactiveEvaluationQueueCapacity { get; set; } = 1000;
 
+    // ServerPulse signals enter a human review workflow only. An inconclusive decision may apply IW4MAdmin's
+    // native Flag level when explicitly enabled; statistical detection never calls this path by itself.
+    public bool AcceptServerPulseCases { get; set; } = true;
+    public bool FlagPlayerOnInconclusiveReview { get; set; } = true;
+    public bool NotifyDiscordWhenFlaggedPlayerJoins { get; set; } = true;
+    public int FlaggedPlayerJoinAlertCooldownMinutes { get; set; } = 15;
+    public string FlaggedPlayerRoleId { get; set; } = string.Empty;
+
     public bool SendMetadataOnlyCasesToDiscord { get; set; } = true;
     public string ReportRoleId { get; set; } = string.Empty;
     public string AntiCheatRoleId { get; set; } = string.Empty;
@@ -76,5 +84,7 @@ public sealed class DemosToDiscordServerOverride
     public bool? SendMetadataOnlyCasesToDiscord { get; set; }
     public string? ReportRoleId { get; set; }
     public string? AntiCheatRoleId { get; set; }
+    public bool? AcceptServerPulseCases { get; set; }
+    public string? FlaggedPlayerRoleId { get; set; }
 }
 

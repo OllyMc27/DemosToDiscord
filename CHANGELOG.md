@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Added a process-local ServerPulse handoff for administrator-resolved Player Guidance signals, including bounded surrounding chat and the captured player list selection outcome.
+- Kept community accusations separate from statistical risk in retained cases, the webfront and Discord; all such cases require human review.
+- Added optional native IW4MAdmin flagging when an administrator closes a case as inconclusive.
+- Added cooldown-protected Discord alerts when a player whose IW4MAdmin level is `Flagged` joins a monitored server.
+
 ## 2.4.0
 
 - Added explainable, server-aware proactive statistical review using the existing IW4MAdmin player-statistics database.

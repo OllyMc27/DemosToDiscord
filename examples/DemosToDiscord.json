@@ -51,6 +51,11 @@
   "ProactiveEvaluationDelaySeconds": 20,
   "ProactiveEvaluationDeduplicationMinutes": 30,
   "ProactiveEvaluationQueueCapacity": 1000,
+  "AcceptServerPulseCases": true,
+  "FlagPlayerOnInconclusiveReview": true,
+  "NotifyDiscordWhenFlaggedPlayerJoins": true,
+  "FlaggedPlayerJoinAlertCooldownMinutes": 15,
+  "FlaggedPlayerRoleId": "",
   "SendMetadataOnlyCasesToDiscord": true,
   "ReportRoleId": "",
   "AntiCheatRoleId": "",
@@ -67,7 +72,9 @@
       "SupportsDemos": true,
       "SendMetadataOnlyCasesToDiscord": true,
       "ReportRoleId": "",
-      "AntiCheatRoleId": ""
+      "AntiCheatRoleId": "",
+      "AcceptServerPulseCases": true,
+      "FlaggedPlayerRoleId": ""
     }
   }
 }
