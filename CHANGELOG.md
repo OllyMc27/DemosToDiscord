@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.5.1 - 2026-09-10
 
 - Removed the separate proactive Discord threshold; `ProactiveCaseRiskThreshold` is now the single threshold for retaining and delivering proactive reviews.
 - Every retained proactive review now searches for supported demo evidence and sends a Discord notification. Unsupported or missing demo evidence falls back to a metadata-only notification.

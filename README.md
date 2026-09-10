@@ -25,11 +25,15 @@ With [ServerPulse](https://github.com/OllyMc27/ServerPulse) installed, moderator
 
 Optional proactive detection compares completed sessions with server-aware baselines built from IW4MAdmin's existing statistics. Qualifying cases show a risk score and the specific unusual indicators that contributed. The plugin does not automatically ban, kick or punish the player—the evidence remains a moderator decision.
 
+`ProactiveCaseRiskThreshold` is the single threshold for retaining a proactive case. When proactive Discord notifications are enabled, every retained case searches for supported demo evidence: T5/T6 demos are uploaded when found, while unsupported or missing demos produce a metadata-only notification. Moderators can retry evidence collection from the case page and attach a demo later without creating a duplicate Discord post.
+
 [Learn how proactive detection works](https://github.com/OllyMc27/DemosToDiscord/wiki/Proactive-Detection)
 
 ## Evidence delivered where staff already work
 
 Discord messages include the original demo, T6 metadata when available, the match timeline and direct links to the case and player profile. Assignment and review changes update the same message rather than creating a trail of disconnected posts.
+
+ServerPulse-resolved community signals and inconclusive-case player flagging stay part of the same human-review workflow. A flagged player's next join can send a cooldown-protected Discord alert for live review.
 
 ![Completed evidence review in Discord](docs/images/discord-report-review.png)
 

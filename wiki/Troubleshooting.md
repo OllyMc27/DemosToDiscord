@@ -113,7 +113,7 @@ Case clearing only targets active reports attached to that case. Legacy cases wi
 
 ## Manual ban created unexpected evidence
 
-Use a current 2.4.x build. Manual bans should only link to a recent existing case and should not create a separate case on the player's current/unrelated server.
+Use a current 2.5.x build. Manual bans should only link to a recent existing case and should not create a separate case on the player's current/unrelated server.
 
 ## No proactive cases appear
 

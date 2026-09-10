@@ -22,7 +22,7 @@
 The startup console should include a line similar to:
 
 ```text
-[DemosToDiscord] by OllyMc27 loaded. Version: 2.5.0
+[DemosToDiscord] by OllyMc27 loaded. Version: 2.5.1
 ```
 
 ## First-run checks
@@ -79,7 +79,9 @@ Then:
 2. Replace the existing file with the new `DemosToDiscord.dll`.
 3. Keep the filename exactly `DemosToDiscord.dll`.
 4. Start IW4MAdmin and verify the version in the loaded list.
-5. Compare the release notes and example configuration for new settings. Version 2.4 adds proactive settings; omitted properties receive safe defaults.
+5. Compare the release notes and example configuration for changed settings. Version 2.4 added proactive settings; omitted properties receive safe defaults.
+
+Version 2.5.1 removes `ProactiveDiscordRiskThreshold`. Delete that obsolete line from your configuration. `ProactiveCaseRiskThreshold` is now the single case and delivery threshold: every retained proactive case searches for a supported demo and falls back to a metadata-only Discord notification when no demo can be attached.
 
 Do not rename the DLL with a version suffix. Do not delete the case state file unless you intentionally want to discard the retained review queue and history.
 

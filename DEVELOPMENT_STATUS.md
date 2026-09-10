@@ -1,5 +1,7 @@
 # Evidence review release status
 
+Version `2.5.1` removes the separate proactive Discord threshold. Every retained proactive case now enters one demo-or-metadata Discord workflow, with Moderator-or-higher evidence retries updating the original message.
+
 Version `2.5.0` adds administrator-resolved ServerPulse community signals, optional native flagging after an explicit **Inconclusive** review, and cooldown-protected Discord alerts when flagged players later join.
 
 Version `2.4.0` introduced the database-driven detector and redesigned Cheating Case Review workspace. Existing evidence cases remain in

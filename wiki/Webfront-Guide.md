@@ -98,7 +98,8 @@ Moderators can:
 - complete a detailed review with notes;
 - use quick cheating/not-cheating decisions;
 - mark a case for more review;
-- clear the reports attached to the case.
+- clear the reports attached to the case;
+- retry Discord evidence delivery and attach a matching demo later when one becomes available.
 
 Owners also see **Delete case permanently**. Deletion requires confirmation and removes the retained case metadata only; it does not reverse player penalties or remove the corresponding Discord message.
 

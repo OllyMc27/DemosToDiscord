@@ -2,7 +2,7 @@
 
 DemosToDiscord is an IW4MAdmin plugin that turns player reports, anti-cheat bans and statistically unusual sessions into organised evidence cases. It finds the relevant Plutonium demo when the game supports one, uploads the original files to Discord, and gives moderators an explainable, human-review workflow.
 
-This Wiki covers DemosToDiscord 2.4.x.
+This Wiki covers DemosToDiscord 2.5.x.
 
 ![DemosToDiscord evidence queue](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-v2-4-overview.png)
 
@@ -29,7 +29,10 @@ This Wiki covers DemosToDiscord 2.4.x.
 - Includes the matching T6 `.json` metadata when available.
 - Captures configured T6 automated anti-cheat bans even without a player report.
 - Uses live IW4MAdmin statistics to surface explainable, unusually strong sessions without automatic punishment.
+- Sends every retained proactive case through one Discord evidence workflow: a supported demo is uploaded when found, otherwise the notification is metadata only.
+- Lets moderators retry demo collection and attach later evidence to the original Discord message.
 - Groups reports and detections from the same player and match into one case.
+- Accepts administrator-resolved ServerPulse community signals and can flag inconclusive players for cooldown-protected join alerts.
 - Keeps T4, IW5 and T5 Zombies reports as metadata-only cases.
 - Adds **Admin → Cheating Case Review** to the IW4MAdmin webfront.
 - Shows demo downloads, match timelines, player statistics and anti-cheat metrics.
