@@ -10,9 +10,9 @@ Start from compact status and utility queues. Retained cases stay out of the way
 
 ## Structured case review
 
-Bring friendly/raw match context, reports, decision, notes, original evidence, Owner tools and native IW4MAdmin player actions together.
+Bring friendly/raw match context, reports, decision, notes, original evidence, population comparison, Owner tools and native IW4MAdmin player actions together.
 
-![Structured evidence case review](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-v2-4-case-review.png)
+![Completed case review with statistical context, reports, demo evidence, timeline and player metrics](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-v2-5-2-statistical-context.png)
 
 ## Timeline and metrics
 

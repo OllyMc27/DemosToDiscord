@@ -20,7 +20,7 @@ With [ServerPulse](https://github.com/OllyMc27/ServerPulse) installed, moderator
 - Keep confirmed cheating cases permanently while applying configurable retention to routine cases.
 - Deliver evidence to Discord and keep the original message in sync with the review outcome.
 
-![Structured case review with reports and match evidence](docs/images/webfront-v2-4-case-review.png)
+![Completed case review with statistical context, reports, demo evidence, timeline and player metrics](docs/images/webfront-v2-5-2-statistical-context.png)
 
 ## Proactive review, with a human decision
 

@@ -34,7 +34,7 @@ The case header shows:
 
 The profile link opens IW4MAdmin's normal client profile.
 
-![Structured evidence case review](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-v2-4-case-review.png)
+![Completed case review with statistical context, reports, demo evidence, timeline and player metrics](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-v2-5-2-statistical-context.png)
 
 ## Demo evidence
 
@@ -70,6 +70,8 @@ Automated-ban cases can also show case-specific anti-cheat snapshots. Metrics pr
 Proactive cases add a **Proactive statistical analysis** panel containing the retained 0–100 risk score, risk band and every qualifying indicator that caused the case to be raised. Each indicator includes the observed statistic, comparable percentile, population median, player sample, eligible population and baseline scope.
 
 Every other case type—including reports, anti-cheat events and ServerPulse community signals—shows a **Statistical review context** panel. This is a current, read-only comparison calculated when the page loads. It can highlight unusually high aggregate metrics when no demo exists, but it does not create or upgrade the case, alter its evidence source, or change its review status. If the population baseline or player statistics are not ready, the panel explains why and the raw metrics remain visible below.
+
+![Statistical review context within a completed evidence case](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/webfront-v2-5-2-statistical-context.png)
 
 Read [[Proactive Detection|Proactive-Detection]] for sample requirements, supported games and safe threshold tuning.
 

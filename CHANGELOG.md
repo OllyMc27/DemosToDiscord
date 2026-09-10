@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.5.2 - 2026-09-11
 
 - Added a read-only statistical review context to every evidence case, including report, anti-cheat and ServerPulse community-signal cases where demos are unsupported or unavailable.
 - Reused the proactive baseline scorer to show unusual metrics, percentiles, population medians, samples and eligible population without changing the case source, status or review decision.

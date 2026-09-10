@@ -1,6 +1,6 @@
 # Evidence review release status
 
-The current unreleased change reuses the population scorer as read-only review context on every evidence case. Ordinary report, anti-cheat and ServerPulse cases retain their original source and outcome; the live comparison never creates, upgrades or punishes from the case page.
+Version `2.5.2` reuses the population scorer as read-only review context on every evidence case. Ordinary report, anti-cheat and ServerPulse cases retain their original source and outcome; the live comparison never creates, upgrades or punishes from the case page.
 
 Version `2.5.1` removes the separate proactive Discord threshold. Every retained proactive case now enters one demo-or-metadata Discord workflow, with Moderator-or-higher evidence retries updating the original message.
 

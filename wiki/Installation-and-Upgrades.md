@@ -22,7 +22,7 @@
 The startup console should include a line similar to:
 
 ```text
-[DemosToDiscord] by OllyMc27 loaded. Version: 2.5.1
+[DemosToDiscord] by OllyMc27 loaded. Version: 2.5.2
 ```
 
 ## First-run checks
@@ -82,6 +82,8 @@ Then:
 5. Compare the release notes and example configuration for changed settings. Version 2.4 added proactive settings; omitted properties receive safe defaults.
 
 Version 2.5.1 removes `ProactiveDiscordRiskThreshold`. Delete that obsolete line from your configuration. `ProactiveCaseRiskThreshold` is now the single case and delivery threshold: every retained proactive case searches for a supported demo and falls back to a metadata-only Discord notification when no demo can be attached.
+
+Version 2.5.2 adds current, read-only population comparisons to every webfront evidence case. No configuration or case-store migration is required; restart IW4MAdmin after replacing the DLL and existing cases gain the panel automatically.
 
 Do not rename the DLL with a version suffix. Do not delete the case state file unless you intentionally want to discard the retained review queue and history.
 
