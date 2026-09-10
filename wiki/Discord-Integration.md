@@ -71,7 +71,7 @@ T5 evidence includes the original `.demo`. Files are uploaded directly—no ZIP 
 
 ## Metadata-only messages
 
-`SendMetadataOnlyCasesToDiscord` controls notifications for T4, IW5, T5 Zombies and servers explicitly marked as not supporting demos.
+`SendMetadataOnlyCasesToDiscord` controls generic report and anti-cheat notifications for T4, IW5, T5 Zombies and servers explicitly marked as not supporting demos. Retained proactive cases use `EnableProactiveDiscordNotifications` and always fall back to metadata-only delivery when a demo cannot be attached.
 
 ```json
 "SendMetadataOnlyCasesToDiscord": true
@@ -81,11 +81,12 @@ When disabled, the case remains in the webfront without creating a Discord messa
 
 ## Proactive notifications
 
-Proactive cases are posted only when all three conditions are true:
+Proactive cases enter the Discord evidence workflow when both conditions are true:
 
 - the assessment reached `ProactiveCaseRiskThreshold` and was retained;
-- it also reached `ProactiveDiscordRiskThreshold`;
 - `EnableProactiveDiscordNotifications` is `true`.
+
+There is no separate Discord or demo threshold. For every retained case, DemosToDiscord searches for a demo when the game and server support one. A matching demo and its metadata are uploaded with the notification; unsupported or missing demo evidence produces a metadata-only notification. A Moderator or higher can use the case action to retry collection and attach a demo later.
 
 The message identifies the case as proactive, shows the explainable risk score/signals and links to normal human review. It never announces that the player is definitively cheating and never applies a penalty. See [[Proactive Detection|Proactive-Detection]].
 
@@ -105,7 +106,7 @@ The embed title and **Review evidence case** link open the case. **Open player p
 
 ## Message updates
 
-When a case is assigned or reviewed, DemosToDiscord edits the original message rather than sending a duplicate. Existing demo/JSON attachments remain attached.
+When a case is assigned, reviewed, or later gains a requested demo, DemosToDiscord edits the original message rather than sending a duplicate. Existing demo/JSON attachments remain attached.
 
 ## CDN download links
 

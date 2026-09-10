@@ -2,9 +2,11 @@
 
 ## Unreleased
 
-- Added an administrator-only **Send to Discord** case action with an explicit confirmation step and retained audit entry.
-- Retry now recalculates Discord eligibility from the current proactive notification settings and thresholds before requeueing a case.
-- Manual Discord delivery remains eligible on later retries and can send metadata-only evidence when a demo is unsupported.
+- Removed the separate proactive Discord threshold; `ProactiveCaseRiskThreshold` is now the single threshold for retaining and delivering proactive reviews.
+- Every retained proactive review now searches for supported demo evidence and sends a Discord notification. Unsupported or missing demo evidence falls back to a metadata-only notification.
+- Added a Moderator-or-higher Discord evidence action with an explicit confirmation step and retained audit entry for retrying collection or attaching a demo later.
+- Retry now recalculates Discord notification eligibility from the current configuration and case threshold.
+- Demo attachments are added to the original Discord review message instead of creating a duplicate post.
 
 ## 2.5.0
 

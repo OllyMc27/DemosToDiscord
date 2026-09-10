@@ -51,7 +51,7 @@ public static class ProactiveDiscordPolicy
 {
     public static bool ShouldNotify(ProactiveRiskAssessment assessment, DemosToDiscordConfig config) =>
         config.EnableProactiveDiscordNotifications && !assessment.Suppressed &&
-        assessment.Score >= Math.Max(config.ProactiveCaseRiskThreshold, config.ProactiveDiscordRiskThreshold);
+        assessment.Score >= config.ProactiveCaseRiskThreshold;
 
     public static ProactiveDiscordAction Action(
         EvidenceCase evidenceCase,
@@ -59,12 +59,11 @@ public static class ProactiveDiscordPolicy
         DemosToDiscordConfig config,
         bool needsEvidenceProcessing)
     {
-        if (needsEvidenceProcessing)
+        if (ShouldNotify(assessment, config) &&
+            (needsEvidenceProcessing || string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId)))
             return ProactiveDiscordAction.QueueEvidence;
         if (!string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId))
             return ProactiveDiscordAction.UpdateExisting;
-        return ShouldNotify(assessment, config)
-            ? ProactiveDiscordAction.QueueEvidence
-            : ProactiveDiscordAction.None;
+        return ProactiveDiscordAction.None;
     }
 }

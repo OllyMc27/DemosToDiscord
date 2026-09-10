@@ -29,7 +29,7 @@ A manual ban does not create a new case by itself. It is linked only to a recent
 
 ## Proactive statistical review
 
-Eligible real-player sessions are evaluated after disconnect or match end when proactive detection is enabled. Only assessments at or above `ProactiveCaseRiskThreshold` create or merge a case. They use the normal demo-search and review pipeline, identify the indicators that contributed, and never administer a penalty automatically. Discord delivery uses the separate `ProactiveDiscordRiskThreshold`.
+Eligible real-player sessions are evaluated after disconnect or match end when proactive detection is enabled. Only assessments at or above `ProactiveCaseRiskThreshold` create or merge a case. When proactive Discord notifications are enabled, every retained review enters the normal evidence pipeline: supported demo evidence is searched for and uploaded, while unsupported or missing demo evidence produces a metadata-only notification. A Moderator or higher can retry evidence collection manually. The indicators remain explainable and no proactive assessment ever administers a penalty automatically.
 
 See [[Proactive Detection|Proactive-Detection]] for safeguards, supported signals and exclusions.
 

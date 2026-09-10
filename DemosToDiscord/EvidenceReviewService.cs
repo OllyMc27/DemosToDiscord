@@ -29,7 +29,7 @@ public sealed class EvidenceReviewService(
     {
         var manager = serviceProvider.GetRequiredService<IManager>();
         var origin = await manager.GetClientService().Get(originId);
-        return origin?.Level >= EFClient.Permission.Administrator;
+        return origin?.Level >= RequiredDiscordRequestPermission();
     }
 
     public async Task<string> SendToDiscordAsync(
@@ -41,8 +41,9 @@ public sealed class EvidenceReviewService(
         var manager = serviceProvider.GetRequiredService<IManager>();
         var origin = await manager.GetClientService().Get(originId)
                      ?? throw new UnauthorizedAccessException("The administrator could not be resolved.");
-        if (origin.Level < EFClient.Permission.Administrator)
-            throw new UnauthorizedAccessException("Administrator permission is required to send evidence to Discord.");
+        var requiredLevel = RequiredDiscordRequestPermission();
+        if (origin.Level < requiredLevel)
+            throw new UnauthorizedAccessException($"{requiredLevel} permission is required to request Discord demo evidence.");
 
         if (!input.TryGetValue("CaseId", out var caseId) || string.IsNullOrWhiteSpace(caseId))
             throw new ArgumentException("Evidence case ID is required.");
@@ -59,6 +60,11 @@ public sealed class EvidenceReviewService(
         return await uploadService.RequestManualDiscordSendAsync(
             caseId, origin.ClientId, originName, token);
     }
+
+    private EFClient.Permission RequiredDiscordRequestPermission() =>
+        (EFClient.Permission)Math.Max(
+            (int)EFClient.Permission.Moderator,
+            (int)config.WebfrontMinimumPermission);
 
     public async Task<string> DeleteAsync(
         int originId,

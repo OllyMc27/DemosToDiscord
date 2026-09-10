@@ -45,7 +45,6 @@
   "ProactiveExcludedServerIds": [],
   "ProactiveExcludeT5Zombies": true,
   "ProactiveCaseRiskThreshold": 50,
-  "ProactiveDiscordRiskThreshold": 65,
   "EnableProactiveDiscordNotifications": true,
   "ProactiveRepeatHistoryWeight": 4,
   "ProactiveEvaluationDelaySeconds": 20,

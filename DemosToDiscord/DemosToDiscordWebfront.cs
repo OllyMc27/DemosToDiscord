@@ -139,11 +139,13 @@ public sealed class DemosToDiscordWebfront : IDisposable
             var interaction = new InteractionData
             {
                 Enabled = true,
-                Name = "Send evidence to Discord",
-                Description = "Manually queue an evidence case for Discord delivery",
+                Name = "Request Discord demo evidence",
+                Description = "Manually collect a demo and attach it to the Discord review message",
                 DisplayMeta = "ph-discord-logo",
                 InteractionId = SendDiscordInteractionKey,
-                MinimumPermission = Data.Models.Client.EFClient.Permission.Administrator,
+                MinimumPermission = (Data.Models.Client.EFClient.Permission)Math.Max(
+                    (int)Data.Models.Client.EFClient.Permission.Moderator,
+                    (int)_config.WebfrontMinimumPermission),
                 InteractionType = InteractionType.ActionButton,
                 Source = "DemosToDiscord",
                 PermissionEntity = "Interaction",
@@ -594,11 +596,13 @@ public sealed class DemosToDiscordWebfront : IDisposable
             .Append(DynamicAction("Clear attached report(s)", "ph-eraser", item, ClearReportInputs(item), "text-muted", "Clear attached reports", "Clear reports"));
         if (canSendToDiscord)
         {
-            var label = string.IsNullOrWhiteSpace(item.DiscordMessageId)
-                ? "Send to Discord"
-                : "Sync Discord message";
-            builder.Append("</div><div class=\"my-4 border-t border-line\"></div><h3 class=\"mb-3 text-xs font-bold uppercase tracking-wider text-muted\">Administrator tools</h3><div class=\"space-y-2\">")
-                .Append(DynamicAction(label, "ph-discord-logo", item, SendDiscordInputs(item), "text-primary", "Send evidence to Discord?", label, SendDiscordInteractionKey));
+            var label = item.Status == EvidenceCaseStatus.Uploaded
+                ? "Sync Discord message"
+                : string.IsNullOrWhiteSpace(item.DiscordMessageId)
+                    ? "Send to Discord & collect demo"
+                    : "Find & attach demo";
+            builder.Append("</div><div class=\"my-4 border-t border-line\"></div><h3 class=\"mb-3 text-xs font-bold uppercase tracking-wider text-muted\">Reviewer tools</h3><div class=\"space-y-2\">")
+                .Append(DynamicAction(label, "ph-discord-logo", item, SendDiscordInputs(item), "text-primary", "Request Discord demo evidence?", label, SendDiscordInteractionKey));
         }
         if (canDelete)
         {
@@ -699,7 +703,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
     private static IReadOnlyList<Dictionary<string, object?>> SendDiscordInputs(EvidenceCase item) =>
     [
         Input("CaseId", "hidden", value: item.Id),
-        Input("ConfirmSend", "checkbox", "Send this evidence case to the configured Discord webhook", required: true)
+        Input("ConfirmSend", "checkbox", "Retry Discord delivery and attach a matching demo when available", required: true)
     ];
 
     private static Dictionary<string, object?> Input(

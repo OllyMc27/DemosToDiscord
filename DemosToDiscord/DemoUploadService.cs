@@ -205,7 +205,7 @@ public sealed class DemoUploadService : IDisposable
         var evidenceCase = _store.Get(caseId);
         if (evidenceCase is null)
             return false;
-        var (eligible, reason) = EvaluateDiscordEligibility(evidenceCase);
+        var (eligible, notificationReason) = EvaluateDiscordEligibility(evidenceCase);
         await _store.UpdateAsync(caseId, item =>
         {
             item.DiscordEligible = eligible;
@@ -215,7 +215,7 @@ public sealed class DemoUploadService : IDisposable
             {
                 WhenUtc = DateTime.UtcNow,
                 Action = EvidenceHistoryAction.DiscordEligibilityRecalculated,
-                Summary = $"Discord eligibility recalculated on retry: {(eligible ? "eligible" : "not eligible")} ({reason})."
+                Summary = $"Retry recalculated Discord notification as {(eligible ? "eligible" : "not eligible")} ({notificationReason})."
             });
         }, token);
         await _queue.Writer.WriteAsync(caseId, token);
@@ -244,22 +244,23 @@ public sealed class DemoUploadService : IDisposable
                 Action = EvidenceHistoryAction.DiscordSendRequested,
                 AdminClientId = administratorClientId,
                 AdminName = administratorName,
-                Summary = $"Discord delivery manually requested by {administratorName}."
+                Summary = $"Discord evidence collection manually requested by {administratorName}."
             });
         }, token);
 
-        if (!string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId))
+        if (!string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId) &&
+            evidenceCase.Status == EvidenceCaseStatus.Uploaded)
         {
             if (!await UpdateCaseDiscordAsync(caseId, token))
                 throw new InvalidOperationException("The existing Discord message could not be updated. Check the case error and IW4MAdmin log.");
-            return "The existing Discord evidence message was updated.";
+            return "The existing Discord evidence message was updated; its demo was already attached.";
         }
 
         await QueueCaseAsync(caseId, token);
         _logger.LogWarning(
-            "[DemosToDiscord] Discord delivery for case {CaseId} manually requested by administrator {AdministratorId}",
+            "[DemosToDiscord] Discord evidence collection for case {CaseId} manually requested by reviewer {AdministratorId}",
             caseId, administratorClientId);
-        return "Case queued for Discord delivery. The demo will be attached when available.";
+        return "Demo collection queued. The Discord review message will be created or updated when evidence is available.";
     }
 
     public async Task QueueCaseAsync(string caseId, CancellationToken token)
@@ -320,7 +321,7 @@ public sealed class DemoUploadService : IDisposable
                 evidenceCase = await EnrichCaseAsync(caseId, null, token);
                 if (!evidenceCase.DiscordEligible)
                     return;
-                if (!ShouldSendMetadataOnly(evidenceCase))
+                if (!ShouldSendMetadataOnly(evidenceCase) && !IsProactiveOnly(evidenceCase))
                 {
                     await _store.UpdateAsync(caseId, item =>
                     {
@@ -341,14 +342,23 @@ public sealed class DemoUploadService : IDisposable
                     return;
                 }
 
-                var unsupportedReceipt = await _discord.SendCaseAsync(
-                    evidenceCase,
-                    metadataWebhook,
-                    null,
-                    null,
-                    ResolveDeliveryOptions(evidenceCase, false),
-                    token);
-                await CompleteAsync(caseId, EvidenceCaseStatus.DemoUnsupported, unsupportedReceipt, null, token);
+                await _store.UpdateAsync(caseId, item => item.Status = EvidenceCaseStatus.DemoUnsupported, token);
+                evidenceCase = _store.Get(caseId)!;
+                if (!string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId))
+                {
+                    await UpdateCaseDiscordAsync(caseId, token);
+                }
+                else
+                {
+                    var unsupportedReceipt = await _discord.SendCaseAsync(
+                        evidenceCase,
+                        metadataWebhook,
+                        null,
+                        null,
+                        ResolveDeliveryOptions(evidenceCase, false),
+                        token);
+                    await CompleteAsync(caseId, EvidenceCaseStatus.DemoUnsupported, unsupportedReceipt, null, token);
+                }
                 return;
             }
 
@@ -374,14 +384,23 @@ public sealed class DemoUploadService : IDisposable
                     await _store.UpdateAsync(caseId, item => item.Status = EvidenceCaseStatus.NoDemo, token);
                     return;
                 }
-                var receipt = await _discord.SendCaseAsync(
-                    evidenceCase,
-                    webhook,
-                    null,
-                    null,
-                    ResolveDeliveryOptions(evidenceCase, false),
-                    token);
-                await CompleteAsync(caseId, EvidenceCaseStatus.NoDemo, receipt, null, token);
+                await _store.UpdateAsync(caseId, item => item.Status = EvidenceCaseStatus.NoDemo, token);
+                evidenceCase = _store.Get(caseId)!;
+                if (!string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId))
+                {
+                    await UpdateCaseDiscordAsync(caseId, token);
+                }
+                else
+                {
+                    var receipt = await _discord.SendCaseAsync(
+                        evidenceCase,
+                        webhook,
+                        null,
+                        null,
+                        ResolveDeliveryOptions(evidenceCase, false),
+                        token);
+                    await CompleteAsync(caseId, EvidenceCaseStatus.NoDemo, receipt, null, token);
+                }
                 return;
             }
 
@@ -399,13 +418,21 @@ public sealed class DemoUploadService : IDisposable
                 await _store.UpdateAsync(caseId, item => item.Status = EvidenceCaseStatus.DemoReady, token);
                 return;
             }
-            var receiptWithDemo = await _discord.SendCaseAsync(
-                evidenceCase,
-                webhook,
-                candidate.DemoPath,
-                candidate.JsonPath,
-                ResolveDeliveryOptions(evidenceCase, true),
-                token);
+            var receiptWithDemo = string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId)
+                ? await _discord.SendCaseAsync(
+                    evidenceCase,
+                    webhook,
+                    candidate.DemoPath,
+                    candidate.JsonPath,
+                    ResolveDeliveryOptions(evidenceCase, true),
+                    token)
+                : await _discord.UpdateCaseWithAttachmentsAsync(
+                    evidenceCase,
+                    webhook,
+                    candidate.DemoPath,
+                    candidate.JsonPath,
+                    ResolveDeliveryOptions(evidenceCase, true),
+                    token);
             await CompleteAsync(caseId, EvidenceCaseStatus.Uploaded, receiptWithDemo, candidate, token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -588,7 +615,7 @@ public sealed class DemoUploadService : IDisposable
         if (!_config.EnableProactiveDiscordNotifications)
             return (false, "proactive Discord notifications are disabled");
 
-        var requiredScore = Math.Max(_config.ProactiveCaseRiskThreshold, _config.ProactiveDiscordRiskThreshold);
+        var requiredScore = _config.ProactiveCaseRiskThreshold;
         var highestScore = evidenceCase.ProactiveDetections
             .Select(item => item.RiskScore)
             .DefaultIfEmpty(0)
@@ -597,6 +624,12 @@ public sealed class DemoUploadService : IDisposable
             ? (true, $"proactive score {highestScore}/100 meets the current {requiredScore}/100 threshold")
             : (false, $"proactive score {highestScore}/100 is below the current {requiredScore}/100 threshold");
     }
+
+    private static bool IsProactiveOnly(EvidenceCase evidenceCase) =>
+        evidenceCase.ProactiveDetections.Count > 0 &&
+        evidenceCase.Reports.Count == 0 &&
+        evidenceCase.AntiCheat is null &&
+        evidenceCase.CommunitySignals.Count == 0;
 
     private DiscordDeliveryOptions ResolveDeliveryOptions(EvidenceCase evidenceCase, bool hasDemo)
     {

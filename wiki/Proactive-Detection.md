@@ -10,8 +10,9 @@ It is a review aid, not an automatic anti-cheat verdict. The detector never bans
 2. A real player's disconnect or match end queues an evaluation after the configured delay.
 3. The player's eligible statistics are compared with comparable players, preferring the same server and falling back to the game-wide population when necessary.
 4. Conservative empirical percentiles, sample safeguards and correlated-signal grouping produce a 0–100 risk score.
-5. A case is retained only when it reaches `ProactiveCaseRiskThreshold`; Discord uses its own, normally higher threshold.
-6. A moderator reviews the explained indicators, demo and surrounding evidence before deciding what to do.
+5. A case is retained only when it reaches `ProactiveCaseRiskThreshold`.
+6. When proactive Discord notifications are enabled, every retained case searches for supported demo evidence and sends a Discord notification. If no demo can be attached, the notification contains metadata only.
+7. A moderator reviews the explained indicators, available demo and surrounding evidence before deciding what to do, and can retry demo collection from the case page.
 
 ## Signals currently used
 
@@ -36,7 +37,7 @@ Bots are never evaluated as suspects. IW4MAdmin's `IgnoreBots` setting may affec
 
 ## Risk levels and thresholds
 
-The presentation bands are Normal (`0–24`), Elevated (`25–49`), Review (`50–64`), High (`65–79`) and Very high (`80–100`). The defaults retain cases at `50` and notify Discord at `65`.
+The presentation bands are Normal (`0–24`), Elevated (`25–49`), Review (`50–64`), High (`65–79`) and Very high (`80–100`). The default retains cases at `50`. That same threshold controls proactive Discord delivery: every retained case attempts to collect a supported demo and otherwise sends metadata only.
 
 Do not lower production thresholds merely to prove the feature works: doing so intentionally creates normal/low-value cases. Verify startup baseline logs first, then observe real traffic with the defaults.
 
@@ -46,7 +47,6 @@ Do not lower production thresholds merely to prove the feature works: doing so i
 "ProactiveMinimumTrackedHits": 200,
 "ProactiveMinimumHeadEvents": 10,
 "ProactiveCaseRiskThreshold": 50,
-"ProactiveDiscordRiskThreshold": 65,
 "EnableProactiveDiscordNotifications": true
 ```
 
@@ -54,7 +54,7 @@ Every proactive option and exclusion is listed in [[Configuration]].
 
 ## What moderators see
 
-A proactive case names each indicator that crossed the statistical floor, shows its observed value and comparable percentile, and explains why it contributed. The case also includes available match evidence, friendly and raw map/mode names, player metrics, assignments, notes and the normal decision controls.
+A proactive case names each indicator that crossed the statistical floor, shows its observed value and comparable percentile, and explains why it contributed. The case also includes available match evidence, friendly and raw map/mode names, player metrics, assignments, notes and the normal decision controls. The webfront offers authorised reviewers a Discord evidence action that can retry collection and attach a demo later if one becomes available.
 
 ![Proactive statistical review delivered to Discord](https://raw.githubusercontent.com/OllyMc27/DemosToDiscord/master/docs/images/discord-proactive-review.png)
 

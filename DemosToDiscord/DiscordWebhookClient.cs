@@ -99,6 +99,92 @@ public sealed class DiscordWebhookClient : IDisposable
             throw new HttpRequestException($"Discord webhook update returned {(int)response.StatusCode}: {responseJson}");
     }
 
+    public async Task<DiscordMessageReceipt> UpdateCaseWithAttachmentsAsync(
+        EvidenceCase evidenceCase,
+        string webhook,
+        string demoPath,
+        string? jsonPath,
+        DiscordDeliveryOptions delivery,
+        CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId))
+            return await SendCaseAsync(evidenceCase, webhook, demoPath, jsonPath, delivery, token);
+
+        var uri = BuildMessageUri(webhook, evidenceCase.DiscordMessageId);
+        using var getResponse = await _http.GetAsync(uri, token);
+        var existingJson = await getResponse.Content.ReadAsStringAsync(token);
+        if (!getResponse.IsSuccessStatusCode)
+            throw new HttpRequestException($"Discord message lookup returned {(int)getResponse.StatusCode}: {existingJson}");
+
+        var existing = JsonSerializer.Deserialize<DiscordMessageDto>(existingJson, _jsonOptions)
+                       ?? throw new InvalidOperationException("Discord returned an empty webhook message.");
+        var candidatePaths = new[] { demoPath, jsonPath }
+            .Where(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            .Select(path => path!)
+            .Where(path => existing.Attachments.All(attachment =>
+                !attachment.FileName.Equals(AttachmentFileName(path), StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        if (candidatePaths.Count == 0)
+        {
+            await UpdateCaseAsync(evidenceCase, webhook, token);
+            return ToReceipt(existing);
+        }
+
+        using var form = new MultipartFormDataContent();
+        var attachmentPayload = existing.Attachments
+            .Select(item => new Dictionary<string, object>
+            {
+                ["id"] = item.Id,
+                ["filename"] = item.FileName
+            })
+            .ToList();
+        var streams = new List<Stream>();
+        try
+        {
+            for (var index = 0; index < candidatePaths.Count; index++)
+            {
+                var path = candidatePaths[index];
+                AddFile(form, streams, path, AttachmentFileName(path), index);
+                attachmentPayload.Add(new Dictionary<string, object>
+                {
+                    ["id"] = index,
+                    ["filename"] = AttachmentFileName(path)
+                });
+            }
+
+            var validRole = delivery.MentionRole && IsDiscordId(delivery.RoleId) ? delivery.RoleId! : null;
+            var payload = new Dictionary<string, object>
+            {
+                ["content"] = validRole is null
+                    ? MessageContent(evidenceCase, true)
+                    : $"<@&{validRole}> {MessageContent(evidenceCase, true)}",
+                ["allowed_mentions"] = new
+                {
+                    parse = Array.Empty<string>(),
+                    roles = validRole is null ? Array.Empty<string>() : new[] { validRole }
+                },
+                ["embeds"] = new[] { BuildEmbed(evidenceCase, demoPath, jsonPath) },
+                ["attachments"] = attachmentPayload
+            };
+            form.Add(new StringContent(JsonSerializer.Serialize(payload, _jsonOptions), Encoding.UTF8,
+                "application/json"), "payload_json");
+
+            using var request = new HttpRequestMessage(HttpMethod.Patch, uri) { Content = form };
+            using var response = await _http.SendAsync(request, token);
+            var responseJson = await response.Content.ReadAsStringAsync(token);
+            if (!response.IsSuccessStatusCode)
+                throw new HttpRequestException($"Discord webhook attachment update returned {(int)response.StatusCode}: {responseJson}");
+            var updated = JsonSerializer.Deserialize<DiscordMessageDto>(responseJson, _jsonOptions)
+                          ?? throw new InvalidOperationException("Discord returned an empty updated webhook message.");
+            return ToReceipt(updated);
+        }
+        finally
+        {
+            foreach (var stream in streams)
+                await stream.DisposeAsync();
+        }
+    }
+
     public async Task<IReadOnlyList<DiscordAttachment>> GetAttachmentsAsync(
         string webhook,
         string messageId,

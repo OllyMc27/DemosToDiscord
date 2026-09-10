@@ -117,9 +117,8 @@ These settings control human-review suggestions built from IW4MAdmin's existing 
 | `ProactiveExcludedGames` | String array | `[]` | Game codes never evaluated, for example `[ "T5" ]`. |
 | `ProactiveExcludedServerIds` | Integer array | `[]` | IW4MAdmin server IDs never evaluated. |
 | `ProactiveExcludeT5Zombies` | Boolean | `true` | Keeps the non-comparable Zombies population out of proactive review. |
-| `ProactiveCaseRiskThreshold` | Integer | `50` | Minimum 0–100 score retained as a case. Recommended production default: `50`. |
-| `ProactiveDiscordRiskThreshold` | Integer | `65` | Minimum score posted to Discord when notifications are enabled. |
-| `EnableProactiveDiscordNotifications` | Boolean | `true` | Sends qualifying retained proactive cases to Discord. |
+| `ProactiveCaseRiskThreshold` | Integer | `50` | Minimum 0–100 score retained as a case and, when notifications are enabled, sent through the Discord evidence workflow. Recommended production default: `50`. |
+| `EnableProactiveDiscordNotifications` | Boolean | `true` | For every retained proactive case, uploads a supported demo to Discord when found or sends a metadata-only notification otherwise. |
 | `ProactiveRepeatHistoryWeight` | Integer | `4` | Maximum extra weight contributed by earlier proactive case history. |
 | `ProactiveEvaluationDelaySeconds` | Integer | `20` | Wait after session completion before reading final statistics. |
 | `ProactiveEvaluationDeduplicationMinutes` | Integer | `30` | Suppresses repeated evaluation of the same player/server session window. |
@@ -208,7 +207,6 @@ Webhook selection: server override → `GameWebhooks` → default `Webhook`.
   "ProactiveExcludedServerIds": [],
   "ProactiveExcludeT5Zombies": true,
   "ProactiveCaseRiskThreshold": 50,
-  "ProactiveDiscordRiskThreshold": 65,
   "EnableProactiveDiscordNotifications": true,
   "ProactiveRepeatHistoryWeight": 4,
   "ProactiveEvaluationDelaySeconds": 20,
@@ -325,6 +323,8 @@ Server IDs are IW4MAdmin's numeric server database IDs, not endpoint ports.
 "EnableProactiveDetection": true,
 "EnableProactiveDiscordNotifications": false
 ```
+
+When notifications are enabled, every case reaching `ProactiveCaseRiskThreshold` enters the Discord evidence workflow. Supported demo evidence is searched for and attached automatically. If the game does not support demos or no matching demo is found, the case is announced with metadata only. A Moderator or higher can retry collection from the case page.
 
 ### Temporary demo diagnostics
 

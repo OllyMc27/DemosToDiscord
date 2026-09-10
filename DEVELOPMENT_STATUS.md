@@ -14,7 +14,7 @@ ServerPulse signals are stored and labelled separately from statistical detectio
 - Correlated-signal protection and human-review-only outcomes.
 - Asynchronous disconnect/match-end evaluation with deduplication.
 - Proactive evidence creation/merging, demo routing, and metadata-only routing.
-- Separate web case and Discord thresholds with same-message updates.
+- One proactive case threshold with automatic demo-or-metadata Discord routing and same-message updates.
 - Dedicated proactive signal presentation in webfront and Discord.
 - Compact queue-first review workspace, friendly map/mode display, Owner deletion and permanent confirmed-cheating retention.
 
