@@ -34,10 +34,12 @@ public sealed class ProactiveBaselineService : IProactiveBaselineProvider, IDisp
 
     public bool IsAvailable { get; private set; }
     public DateTime? LastSuccessfulRefreshUtc { get; private set; }
+    private bool ShouldMaintainReviewBaselines =>
+        _config.EnableProactiveDetection || _config.EnableWebfrontDashboard;
 
     public async Task StartAsync(CancellationToken token)
     {
-        if (!_config.EnableProactiveDetection || _initialized)
+        if (!ShouldMaintainReviewBaselines || _initialized)
             return;
         _initialized = true;
         await LoadStateAsync(token);
@@ -48,7 +50,7 @@ public sealed class ProactiveBaselineService : IProactiveBaselineProvider, IDisp
 
     public async Task RefreshAsync(CancellationToken token = default)
     {
-        if (!_config.EnableProactiveDetection)
+        if (!ShouldMaintainReviewBaselines)
             return;
         if (!await _refreshGate.WaitAsync(0, token))
             return;
@@ -73,7 +75,7 @@ public sealed class ProactiveBaselineService : IProactiveBaselineProvider, IDisp
             IsAvailable = refreshed.Members.Count > 0;
             LastSuccessfulRefreshUtc = DateTime.UtcNow;
             _logger.LogInformation(
-                "[DemosToDiscord] proactive baselines refreshed: {Players} player/server members and {Weapons} weapon members",
+                "[DemosToDiscord] statistical review baselines refreshed: {Players} player/server members and {Weapons} weapon members",
                 refreshed.Members.Count, refreshed.WeaponMembers.Count);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -82,7 +84,7 @@ public sealed class ProactiveBaselineService : IProactiveBaselineProvider, IDisp
         catch (Exception exception)
         {
             IsAvailable = false;
-            _logger.LogError(exception, "[DemosToDiscord] proactive baseline refresh failed; proactive evaluation is suppressed");
+            _logger.LogError(exception, "[DemosToDiscord] statistical review baseline refresh failed; comparison and proactive evaluation are suppressed");
         }
         finally
         {

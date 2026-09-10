@@ -108,8 +108,8 @@ These settings control human-review suggestions built from IW4MAdmin's existing 
 
 | Setting | Type | Default | Accepted values and behaviour |
 |---|---|---:|---|
-| `EnableProactiveDetection` | Boolean | `true` | Evaluates eligible real-player sessions after disconnect/match end. |
-| `ProactiveBaselineRefreshMinutes` | Integer | `5` | Minutes between live database baseline refreshes. Positive value. |
+| `EnableProactiveDetection` | Boolean | `true` | Evaluates eligible real-player sessions after disconnect/match end. Turning this off stops automatic proactive case creation; webfront-only statistical context remains available while the dashboard is enabled. |
+| `ProactiveBaselineRefreshMinutes` | Integer | `5` | Minutes between live database baseline refreshes used by proactive detection and case-page statistical context. Positive value. |
 | `ProactiveBaselineStateFilePath` | String | `Configuration/DemosToDiscordProactiveBaselines.json` | Rebuildable aggregate baseline cache path. |
 | `ProactiveMinimumPopulation` | Integer | `100` | Minimum comparable player/server population before scoring. |
 | `ProactiveMinimumTrackedHits` | Integer | `200` | Player tracked-hit sample required for hit-location/mechanics signals. |

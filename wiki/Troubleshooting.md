@@ -118,7 +118,7 @@ Use a current 2.5.x build. Manual bans should only link to a recent existing cas
 ## No proactive cases appear
 
 - Confirm the startup log says proactive detection is enabled.
-- Look for a successful baseline refresh with non-zero player/server and weapon population counts.
+- Look for a successful statistical review baseline refresh with non-zero player/server and weapon population counts.
 - Confirm the game/server is not in `ProactiveExcludedGames` or `ProactiveExcludedServerIds`.
 - T5 Zombies is excluded by default; bots are never evaluated as suspects.
 - A player must finish/disconnect, wait for `ProactiveEvaluationDelaySeconds`, meet sample requirements and reach `ProactiveCaseRiskThreshold`.
@@ -131,7 +131,7 @@ Do not lower thresholds on a production server merely to force a case. See [[Pro
 
 This normally indicates a diagnostic case created while the case threshold was deliberately set very low. At the production default (`50`), a normal 0/100 assessment is not retained. Restore the defaults and wait for a genuinely qualifying completed session.
 
-## Proactive baseline refresh fails
+## Statistical review baseline refresh fails
 
 - Confirm IW4MAdmin completed its database migrations and connected to the normal statistics database.
 - Check write permission for `ProactiveBaselineStateFilePath`.

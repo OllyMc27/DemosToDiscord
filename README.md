@@ -15,6 +15,7 @@ With [ServerPulse](https://github.com/OllyMc27/ServerPulse) installed, moderator
 - Match the correct T5 or T6 demo without renaming or compressing it.
 - Group repeat reports, automated detections and match context into one retained case.
 - See friendly map and mode names, report timing, player statistics and anti-cheat metrics.
+- Compare every case's current aggregate statistics with the eligible IW4MAdmin population, including metadata-only IW5 cases.
 - Assign cases, add notes and use IW4MAdmin's native moderation actions.
 - Keep confirmed cheating cases permanently while applying configurable retention to routine cases.
 - Deliver evidence to Discord and keep the original message in sync with the review outcome.
@@ -24,6 +25,8 @@ With [ServerPulse](https://github.com/OllyMc27/ServerPulse) installed, moderator
 ## Proactive review, with a human decision
 
 Optional proactive detection compares completed sessions with server-aware baselines built from IW4MAdmin's existing statistics. Qualifying cases show a risk score and the specific unusual indicators that contributed. The plugin does not automatically ban, kick or punish the player—the evidence remains a moderator decision.
+
+The same scorer also provides read-only statistical review context on ordinary report, anti-cheat and ServerPulse cases. It shows percentiles, population medians, sample sizes and baseline scope without retrospectively relabelling the case as proactive or changing its status. This is particularly useful for metadata-only games such as IW5, where no demo can be attached.
 
 `ProactiveCaseRiskThreshold` is the single threshold for retaining a proactive case. When proactive Discord notifications are enabled, every retained case searches for supported demo evidence: T5/T6 demos are uploaded when found, while unsupported or missing demos produce a metadata-only notification. Moderators can retry evidence collection from the case page and attach a demo later without creating a duplicate Discord post.
 

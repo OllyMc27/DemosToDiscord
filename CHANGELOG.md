@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added a read-only statistical review context to every evidence case, including report, anti-cheat and ServerPulse community-signal cases where demos are unsupported or unavailable.
+- Reused the proactive baseline scorer to show unusual metrics, percentiles, population medians, samples and eligible population without changing the case source, status or review decision.
+- Kept statistical review baselines active while the webfront dashboard is enabled, even when automatic proactive case creation is disabled.
+
 ## 2.5.1 - 2026-09-10
 
 - Removed the separate proactive Discord threshold; `ProactiveCaseRiskThreshold` is now the single threshold for retaining and delivering proactive reviews.

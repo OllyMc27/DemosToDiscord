@@ -34,7 +34,7 @@ The startup console should include a line similar to:
 5. Wait for the match to end and the demo to finish writing.
 6. Confirm the original `.demo` and `.json` appear in Discord.
 7. Open the case and test the Discord download link.
-8. Confirm a proactive baseline refresh with non-zero population counts appears in the log.
+8. Confirm a statistical review baseline refresh with non-zero population counts appears in the log.
 
 ## Demo-folder permissions
 

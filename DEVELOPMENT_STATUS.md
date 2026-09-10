@@ -1,5 +1,7 @@
 # Evidence review release status
 
+The current unreleased change reuses the population scorer as read-only review context on every evidence case. Ordinary report, anti-cheat and ServerPulse cases retain their original source and outcome; the live comparison never creates, upgrades or punishes from the case page.
+
 Version `2.5.1` removes the separate proactive Discord threshold. Every retained proactive case now enters one demo-or-metadata Discord workflow, with Moderator-or-higher evidence retries updating the original message.
 
 Version `2.5.0` adds administrator-resolved ServerPulse community signals, optional native flagging after an explicit **Inconclusive** review, and cooldown-protected Discord alerts when flagged players later join.
@@ -18,6 +20,7 @@ ServerPulse signals are stored and labelled separately from statistical detectio
 - Proactive evidence creation/merging, demo routing, and metadata-only routing.
 - One proactive case threshold with automatic demo-or-metadata Discord routing and same-message updates.
 - Dedicated proactive signal presentation in webfront and Discord.
+- Read-only current baseline comparisons for all webfront evidence cases.
 - Compact queue-first review workspace, friendly map/mode display, Owner deletion and permanent confirmed-cheating retention.
 
 ## Current limitations

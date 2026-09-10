@@ -4,9 +4,11 @@ DemosToDiscord 2.4 can identify statistically unusual real-player sessions even 
 
 It is a review aid, not an automatic anti-cheat verdict. The detector never bans, kicks, flags, clears reports or changes a player's standing.
 
+The same population scorer is reused as read-only context on all case pages. For an ordinary report, anti-cheat or ServerPulse case, the comparison is calculated from current aggregate statistics when the page loads and is clearly labelled **Statistical review context**. It cannot turn that case into a proactive detection, alter its status or trigger punishment.
+
 ## How it works
 
-1. The plugin refreshes compact, server-aware population baselines from IW4MAdmin's database.
+1. The plugin refreshes compact, server-aware population baselines from IW4MAdmin's database for proactive detection and case-page review context.
 2. A real player's disconnect or match end queues an evaluation after the configured delay.
 3. The player's eligible statistics are compared with comparable players, preferring the same server and falling back to the game-wide population when necessary.
 4. Conservative empirical percentiles, sample safeguards and correlated-signal grouping produce a 0–100 risk score.
@@ -62,7 +64,7 @@ If no indicator qualifies, there is no useful signal breakdown to display and, a
 
 ## Confirm that it is running
 
-After startup, look for a successful proactive baseline refresh in the IW4MAdmin log. A healthy refresh reports non-zero player/server and weapon population counts. A newly installed plugin may need several minutes and completed player sessions before the first eligible evaluation.
+After startup, look for a successful statistical review baseline refresh in the IW4MAdmin log. A healthy refresh reports non-zero player/server and weapon population counts. A newly installed plugin may need several minutes and completed player sessions before the first eligible evaluation.
 
 Set `Debug` to `true` temporarily when diagnosing exclusions or insufficient samples, reproduce one completed session, preserve the relevant log lines, then return it to `false`.
 

@@ -36,6 +36,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
     private readonly DemosToDiscordConfig _config;
     private readonly DemoUploadService _service;
     private readonly AntiCheatMetricsService _metrics;
+    private readonly ProactiveRiskScorer _riskScorer;
     private readonly PlayerTimelineService _timeline;
     private readonly DiscordWebhookClient _discord;
     private readonly EvidenceReviewService _reviewService;
@@ -48,6 +49,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         DemosToDiscordConfig config,
         DemoUploadService service,
         AntiCheatMetricsService metrics,
+        ProactiveRiskScorer riskScorer,
         PlayerTimelineService timeline,
         DiscordWebhookClient discord,
         EvidenceReviewService reviewService,
@@ -58,6 +60,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         _config = config;
         _service = service;
         _metrics = metrics;
+        _riskScorer = riskScorer;
         _timeline = timeline;
         _discord = discord;
         _reviewService = reviewService;
@@ -254,6 +257,10 @@ public sealed class DemosToDiscordWebfront : IDisposable
         var metrics = await metricsTask;
         var timeline = await timelineTask;
         var attachments = await attachmentsTask;
+        var currentStatisticalContext = evidenceCase.ProactiveDetections.Count == 0 &&
+                                        evidenceCase.LegacyServerId is > 0
+            ? _riskScorer.Score(evidenceCase.TargetClientId, evidenceCase.LegacyServerId.Value)
+            : null;
         var canDelete = await _reviewService.CanDeleteAsync(originId);
         var canSendToDiscord = await _reviewService.CanSendToDiscordAsync(originId);
         var orderedCases = _service.GetSnapshot().Cases;
@@ -278,7 +285,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
             .Append(ReviewBanner(evidenceCase))
             .Append(ReviewSummarySection(evidenceCase))
             .Append(CommunitySignalSection(evidenceCase))
-            .Append(ProactiveAnalysisSection(evidenceCase))
+            .Append(ProactiveAnalysisSection(evidenceCase, currentStatisticalContext))
             .Append(ReportsSection(evidenceCase))
             .Append(AntiCheatSection(evidenceCase, metrics))
             .Append("<section id=\"evidence\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"flex items-center justify-between gap-3 border-b border-line px-5 py-4\"><div><h3 class=\"font-semibold text-foreground\">Match evidence</h3><p class=\"mt-0.5 text-sm text-muted\">Download the original demo or open its Discord evidence message.</p></div><i class=\"ph ph-film-strip text-2xl text-primary\"></i></div><div class=\"p-5\"><div class=\"dtd-evidence-grid\"><div class=\"min-w-0\">");
@@ -487,17 +494,24 @@ public sealed class DemosToDiscordWebfront : IDisposable
         return builder.ToString();
     }
 
-    internal static string ProactiveAnalysisSection(EvidenceCase evidenceCase)
+    internal static string ProactiveAnalysisSection(
+        EvidenceCase evidenceCase,
+        ProactiveRiskAssessment? currentContext = null)
     {
-        if (evidenceCase.ProactiveDetections.Count == 0)
-            return string.Empty;
-
-        var assessment = evidenceCase.ProactiveDetections
+        var storedAssessment = evidenceCase.ProactiveDetections
             .OrderByDescending(item => item.RiskScore)
             .ThenByDescending(item => item.WhenUtc)
-            .First();
-        var signals = assessment.Signals.OrderByDescending(item => item.Contribution).ToList();
-        var riskClass = assessment.RiskScore switch
+            .FirstOrDefault();
+        if (storedAssessment is null && currentContext is null)
+            return string.Empty;
+
+        var isCaseSource = storedAssessment is not null;
+        var riskScore = storedAssessment?.RiskScore ?? currentContext!.Score;
+        var riskLevel = storedAssessment?.RiskLevel ?? currentContext!.Level;
+        var signals = (storedAssessment?.Signals ?? currentContext!.Signals)
+            .OrderByDescending(item => item.Contribution)
+            .ToList();
+        var riskClass = riskScore switch
         {
             >= 80 => "border-red-500/30 bg-red-500/10 text-red-300",
             >= 65 => "border-orange-500/30 bg-orange-500/10 text-orange-300",
@@ -505,17 +519,51 @@ public sealed class DemosToDiscordWebfront : IDisposable
             >= 25 => "border-primary/30 bg-primary/10 text-primary",
             _ => "border-line bg-surface-alt/30 text-muted"
         };
-        var builder = new StringBuilder("<section id=\"proactive-analysis\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between\"><div><h3 class=\"font-semibold text-foreground\">Proactive statistical analysis</h3><p class=\"mt-0.5 text-sm text-muted\">Explains which stored player metrics differed from the comparable IW4MAdmin population.</p></div>")
-            .Append($"<span class=\"inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-sm font-semibold {riskClass}\">{Encode(assessment.RiskLevel)} · {assessment.RiskScore}/100</span></div>");
+        var heading = isCaseSource ? "Proactive statistical analysis" : "Statistical review context";
+        var description = isCaseSource
+            ? "Explains which stored player metrics caused this proactive review to be retained."
+            : "Compares the player's current aggregate statistics with the comparable IW4MAdmin population.";
+        var badge = currentContext is { Suppressed: true } && !isCaseSource
+            ? "Context unavailable"
+            : $"{(isCaseSource ? string.Empty : "Context · ")}{riskLevel} · {riskScore}/100";
+        var builder = new StringBuilder("<section id=\"proactive-analysis\" class=\"scroll-mt-4 overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between\"><div><h3 class=\"font-semibold text-foreground\">")
+            .Append(Encode(heading))
+            .Append("</h3><p class=\"mt-0.5 text-sm text-muted\">")
+            .Append(Encode(description))
+            .Append("</p></div>")
+            .Append($"<span class=\"inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-sm font-semibold {riskClass}\">{Encode(badge)}</span></div>");
 
-        if (signals.Count == 0)
+        if (!isCaseSource && currentContext!.Suppressed)
         {
-            builder.Append("<div class=\"p-5\"><div class=\"flex gap-3 rounded-lg border border-line bg-surface-alt/20 p-4\"><i class=\"ph ph-info text-xl text-primary\"></i><div><div class=\"font-medium text-foreground\">No unusual statistical indicators were identified</div><p class=\"mt-1 text-sm leading-relaxed text-muted\">No player metric crossed the detector's 97th-percentile signal floor. This normal case was retained only because the diagnostic case threshold was set low enough to include a 0/100 assessment.</p></div></div>")
-                .Append($"<div class=\"mt-3 text-xs text-muted\">Evaluation trigger: {Encode(string.IsNullOrWhiteSpace(assessment.EvaluationReason) ? "proactive evaluation" : assessment.EvaluationReason)} · assessed {Encode(EvidenceTime.Format(assessment.WhenUtc))}</div></div></section>");
+            builder.Append("<div class=\"p-5\"><div class=\"flex gap-3 rounded-lg border border-line bg-surface-alt/20 p-4\"><i class=\"ph ph-info text-xl text-primary\"></i><div><div class=\"font-medium text-foreground\">A population comparison is not available yet</div><p class=\"mt-1 text-sm leading-relaxed text-muted\">")
+                .Append(Encode(currentContext.SuppressionReason))
+                .Append(" The raw player metrics remain available below.</p></div></div><p class=\"mt-3 text-xs text-muted\">This read-only comparison did not create the case and does not change its evidence source, status or review outcome.</p></div></section>");
             return builder.ToString();
         }
 
-        builder.Append("<div class=\"p-5\"><div class=\"mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200\"><div class=\"font-semibold\">Why this case was raised</div><p class=\"mt-1 opacity-90\">The following aggregate metrics were unusually high compared with eligible players in the stated baseline. They are review signals, not proof of cheating.</p></div><div class=\"space-y-3\">");
+        if (signals.Count == 0)
+        {
+            var explanation = isCaseSource
+                ? "No player metric crossed the detector's 97th-percentile signal floor. This normal case was retained only because the diagnostic case threshold was set low enough to include a 0/100 assessment."
+                : "No eligible player metric currently crosses the 97th-percentile signal floor. The original report, community signal or anti-cheat event still requires its own evidence review.";
+            builder.Append("<div class=\"p-5\"><div class=\"flex gap-3 rounded-lg border border-line bg-surface-alt/20 p-4\"><i class=\"ph ph-info text-xl text-primary\"></i><div><div class=\"font-medium text-foreground\">No unusual statistical indicators were identified</div><p class=\"mt-1 text-sm leading-relaxed text-muted\">")
+                .Append(Encode(explanation))
+                .Append("</p></div></div>");
+            if (isCaseSource)
+                builder.Append($"<div class=\"mt-3 text-xs text-muted\">Evaluation trigger: {Encode(string.IsNullOrWhiteSpace(storedAssessment!.EvaluationReason) ? "proactive evaluation" : storedAssessment.EvaluationReason)} · assessed {Encode(EvidenceTime.Format(storedAssessment.WhenUtc))}</div>");
+            else
+                builder.Append("<p class=\"mt-3 text-xs text-muted\">This read-only comparison did not create the case and does not change its evidence source, status or review outcome.</p>");
+            builder.Append("</div></section>");
+            return builder.ToString();
+        }
+
+        builder.Append("<div class=\"p-5\"><div class=\"mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200\"><div class=\"font-semibold\">")
+            .Append(isCaseSource ? "Why this case was raised" : "Metrics worth closer review")
+            .Append("</div><p class=\"mt-1 opacity-90\">")
+            .Append(isCaseSource
+                ? "The following aggregate metrics were unusually high compared with eligible players in the stated baseline. They are review signals, not proof of cheating."
+                : "The following current aggregate metrics are unusually high compared with eligible players. This comparison did not create the case and the signals are not proof of cheating.")
+            .Append("</p></div><div class=\"space-y-3\">");
         foreach (var signal in signals)
         {
             builder.Append("<article class=\"rounded-lg border border-line bg-surface-alt/20 p-4\"><div class=\"flex flex-wrap items-start justify-between gap-2\"><div><div class=\"font-semibold text-foreground\">")
@@ -535,7 +583,10 @@ public sealed class DemosToDiscordWebfront : IDisposable
                 .Append(Encode(signal.BaselineScope))
                 .Append("</span></div></article>");
         }
-        builder.Append($"</div><div class=\"mt-4 flex flex-col gap-1 border-t border-line pt-4 text-xs text-muted sm:flex-row sm:items-center sm:justify-between\"><span>Evaluation trigger: {Encode(string.IsNullOrWhiteSpace(assessment.EvaluationReason) ? "proactive evaluation" : assessment.EvaluationReason)}</span><span>Assessed {Encode(EvidenceTime.Format(assessment.WhenUtc))}</span></div><p class=\"mt-3 text-xs text-muted\">Human review is required. DemosToDiscord does not automatically punish a player from this assessment.</p></div></section>");
+        if (isCaseSource)
+            builder.Append($"</div><div class=\"mt-4 flex flex-col gap-1 border-t border-line pt-4 text-xs text-muted sm:flex-row sm:items-center sm:justify-between\"><span>Evaluation trigger: {Encode(string.IsNullOrWhiteSpace(storedAssessment!.EvaluationReason) ? "proactive evaluation" : storedAssessment.EvaluationReason)}</span><span>Assessed {Encode(EvidenceTime.Format(storedAssessment.WhenUtc))}</span></div><p class=\"mt-3 text-xs text-muted\">Human review is required. DemosToDiscord does not automatically punish a player from this assessment.</p></div></section>");
+        else
+            builder.Append("</div><div class=\"mt-4 border-t border-line pt-4 text-xs text-muted\">Current aggregate comparison calculated when this page loaded. It did not create or upgrade this case.</div><p class=\"mt-3 text-xs text-muted\">Human review is required. DemosToDiscord does not automatically punish a player from these statistics.</p></div></section>");
         return builder.ToString();
     }
 
