@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added an administrator-only **Send to Discord** case action with an explicit confirmation step and retained audit entry.
+- Retry now recalculates Discord eligibility from the current proactive notification settings and thresholds before requeueing a case.
+- Manual Discord delivery remains eligible on later retries and can send metadata-only evidence when a demo is unsupported.
+
 ## 2.5.0
 
 - Added a process-local ServerPulse handoff for administrator-resolved Player Guidance signals, including bounded surrounding chat and the captured player list selection outcome.

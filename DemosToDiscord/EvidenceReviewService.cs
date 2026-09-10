@@ -25,6 +25,41 @@ public sealed class EvidenceReviewService(
         return origin?.Level >= EFClient.Permission.Owner;
     }
 
+    public async Task<bool> CanSendToDiscordAsync(int originId)
+    {
+        var manager = serviceProvider.GetRequiredService<IManager>();
+        var origin = await manager.GetClientService().Get(originId);
+        return origin?.Level >= EFClient.Permission.Administrator;
+    }
+
+    public async Task<string> SendToDiscordAsync(
+        int originId,
+        int? targetId,
+        IDictionary<string, string> input,
+        CancellationToken token)
+    {
+        var manager = serviceProvider.GetRequiredService<IManager>();
+        var origin = await manager.GetClientService().Get(originId)
+                     ?? throw new UnauthorizedAccessException("The administrator could not be resolved.");
+        if (origin.Level < EFClient.Permission.Administrator)
+            throw new UnauthorizedAccessException("Administrator permission is required to send evidence to Discord.");
+
+        if (!input.TryGetValue("CaseId", out var caseId) || string.IsNullOrWhiteSpace(caseId))
+            throw new ArgumentException("Evidence case ID is required.");
+        var evidenceCase = store.Get(caseId) ?? throw new ArgumentException($"Evidence case {caseId} was not found.");
+        if (targetId is not null && targetId != evidenceCase.TargetClientId)
+            throw new UnauthorizedAccessException("The requested target does not match the evidence case.");
+        if (!input.TryGetValue("ConfirmSend", out var confirmation) ||
+            !bool.TryParse(confirmation, out var confirmed) || !confirmed)
+        {
+            throw new ArgumentException("Confirm Discord delivery before continuing.");
+        }
+
+        var originName = origin.CurrentAlias?.Name.StripColors() ?? $"Client #{origin.ClientId}";
+        return await uploadService.RequestManualDiscordSendAsync(
+            caseId, origin.ClientId, originName, token);
+    }
+
     public async Task<string> DeleteAsync(
         int originId,
         int? targetId,

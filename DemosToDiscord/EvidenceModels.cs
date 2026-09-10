@@ -42,7 +42,9 @@ public enum EvidenceHistoryAction
     DiscordSynced,
     ProactiveEvaluated,
     CommunitySignalAdded,
-    PlayerFlagged
+    PlayerFlagged,
+    DiscordSendRequested,
+    DiscordEligibilityRecalculated
 }
 
 public enum EvidenceReviewDecision
@@ -76,6 +78,7 @@ public sealed class EvidenceCase
     public List<ProactiveDetectionEvidence> ProactiveDetections { get; set; } = [];
     public List<CommunitySignalEvidence> CommunitySignals { get; set; } = [];
     public bool DiscordEligible { get; set; }
+    public bool DiscordManuallyRequested { get; set; }
     public string? DemoFileName { get; set; }
     public long? DemoFileSize { get; set; }
     public DateTime? DemoStartedAtUtc { get; set; }

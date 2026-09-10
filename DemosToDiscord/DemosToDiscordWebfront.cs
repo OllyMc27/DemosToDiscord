@@ -13,6 +13,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
     public const string InteractionKey = "Webfront::Nav::Admin::DemosToDiscord";
     public const string ReviewInteractionKey = "DemosToDiscord::ReviewCase";
     public const string DeleteInteractionKey = "DemosToDiscord::DeleteCase";
+    public const string SendDiscordInteractionKey = "DemosToDiscord::SendToDiscord";
     private const string WideStyles = """
         <style>
           .max-w-7xl:has(.dtd-workspace)>div.flex.items-center.gap-3.mb-8{display:none}
@@ -69,6 +70,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         _interactions.UnregisterInteraction(InteractionKey);
         _interactions.UnregisterInteraction(ReviewInteractionKey);
         _interactions.UnregisterInteraction(DeleteInteractionKey);
+        _interactions.UnregisterInteraction(SendDiscordInteractionKey);
 
         if (_config.EnableWebfrontDashboard)
         {
@@ -128,6 +130,26 @@ public sealed class DemosToDiscordWebfront : IDisposable
                 PermissionAccess = "Write",
                 Action = (originId, targetId, _, meta, token) =>
                     _reviewService.DeleteAsync(originId, targetId, meta, token)
+            };
+            return Task.FromResult<IInteractionData>(interaction);
+        });
+
+        _interactions.RegisterInteraction(SendDiscordInteractionKey, (_, _, _) =>
+        {
+            var interaction = new InteractionData
+            {
+                Enabled = true,
+                Name = "Send evidence to Discord",
+                Description = "Manually queue an evidence case for Discord delivery",
+                DisplayMeta = "ph-discord-logo",
+                InteractionId = SendDiscordInteractionKey,
+                MinimumPermission = Data.Models.Client.EFClient.Permission.Administrator,
+                InteractionType = InteractionType.ActionButton,
+                Source = "DemosToDiscord",
+                PermissionEntity = "Interaction",
+                PermissionAccess = "Write",
+                Action = (originId, targetId, _, meta, token) =>
+                    _reviewService.SendToDiscordAsync(originId, targetId, meta, token)
             };
             return Task.FromResult<IInteractionData>(interaction);
         });
@@ -231,6 +253,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         var timeline = await timelineTask;
         var attachments = await attachmentsTask;
         var canDelete = await _reviewService.CanDeleteAsync(originId);
+        var canSendToDiscord = await _reviewService.CanSendToDiscordAsync(originId);
         var orderedCases = _service.GetSnapshot().Cases;
         var playerCases = orderedCases
             .Where(item => item.TargetClientId == evidenceCase.TargetClientId &&
@@ -296,7 +319,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         builder.Append(PlayerMetricsSection(metrics.PlayerMetrics));
         builder.Append(PlayerHistorySection(playerCases));
         builder.Append(AuditHistorySection(evidenceCase));
-        builder.Append("</main>").Append(ActionsSection(evidenceCase, canDelete)).Append("</div></div>");
+        builder.Append("</main>").Append(ActionsSection(evidenceCase, canDelete, canSendToDiscord)).Append("</div></div>");
         return builder.ToString();
     }
 
@@ -550,7 +573,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         _ => value.ToString("0.###", CultureInfo.InvariantCulture)
     };
 
-    private static string ActionsSection(EvidenceCase item, bool canDelete)
+    private static string ActionsSection(EvidenceCase item, bool canDelete, bool canSendToDiscord)
     {
         var targetId = item.TargetClientId;
         var builder = new StringBuilder("<aside class=\"min-w-0\"><section class=\"dtd-actions rounded-xl border border-line bg-surface p-4 shadow-sm\"><h3 class=\"mb-3 text-xs font-bold uppercase tracking-wider text-muted\">Player actions</h3><div class=\"space-y-2\">");
@@ -569,6 +592,14 @@ public sealed class DemosToDiscordWebfront : IDisposable
             .Append(DynamicAction("Not cheating — clear report", "ph-check-circle", item, QuickReviewInputs(item, EvidenceReviewDecision.NotCheatingNoAction, true), "text-emerald-400", "Clear player evidence", "Mark not cheating"))
             .Append(DynamicAction("Needs more review", "ph-magnifying-glass", item, QuickReviewInputs(item, EvidenceReviewDecision.NeedsMoreReview, false), "text-amber-400", "Queue for more review", "Save decision"))
             .Append(DynamicAction("Clear attached report(s)", "ph-eraser", item, ClearReportInputs(item), "text-muted", "Clear attached reports", "Clear reports"));
+        if (canSendToDiscord)
+        {
+            var label = string.IsNullOrWhiteSpace(item.DiscordMessageId)
+                ? "Send to Discord"
+                : "Sync Discord message";
+            builder.Append("</div><div class=\"my-4 border-t border-line\"></div><h3 class=\"mb-3 text-xs font-bold uppercase tracking-wider text-muted\">Administrator tools</h3><div class=\"space-y-2\">")
+                .Append(DynamicAction(label, "ph-discord-logo", item, SendDiscordInputs(item), "text-primary", "Send evidence to Discord?", label, SendDiscordInteractionKey));
+        }
         if (canDelete)
         {
             builder.Append("</div><div class=\"my-4 border-t border-line\"></div><h3 class=\"mb-3 text-xs font-bold uppercase tracking-wider text-muted\">Owner tools</h3><div class=\"space-y-2\">")
@@ -663,6 +694,12 @@ public sealed class DemosToDiscordWebfront : IDisposable
     [
         Input("CaseId", "hidden", value: item.Id),
         Input("ConfirmDelete", "checkbox", "Permanently delete this retained case metadata", required: true)
+    ];
+
+    private static IReadOnlyList<Dictionary<string, object?>> SendDiscordInputs(EvidenceCase item) =>
+    [
+        Input("CaseId", "hidden", value: item.Id),
+        Input("ConfirmSend", "checkbox", "Send this evidence case to the configured Discord webhook", required: true)
     ];
 
     private static Dictionary<string, object?> Input(
@@ -1062,6 +1099,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         _interactions.UnregisterInteraction(InteractionKey);
         _interactions.UnregisterInteraction(ReviewInteractionKey);
         _interactions.UnregisterInteraction(DeleteInteractionKey);
+        _interactions.UnregisterInteraction(SendDiscordInteractionKey);
     }
 }
 

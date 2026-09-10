@@ -202,15 +202,64 @@ public sealed class DemoUploadService : IDisposable
 
     public async Task<bool> RetryAsync(string caseId, CancellationToken token)
     {
-        if (_store.Get(caseId) is null)
+        var evidenceCase = _store.Get(caseId);
+        if (evidenceCase is null)
             return false;
+        var (eligible, reason) = EvaluateDiscordEligibility(evidenceCase);
         await _store.UpdateAsync(caseId, item =>
         {
+            item.DiscordEligible = eligible;
             item.Status = EvidenceCaseStatus.Queued;
             item.LastError = null;
+            item.History.Add(new EvidenceHistoryEntry
+            {
+                WhenUtc = DateTime.UtcNow,
+                Action = EvidenceHistoryAction.DiscordEligibilityRecalculated,
+                Summary = $"Discord eligibility recalculated on retry: {(eligible ? "eligible" : "not eligible")} ({reason})."
+            });
         }, token);
         await _queue.Writer.WriteAsync(caseId, token);
         return true;
+    }
+
+    public async Task<string> RequestManualDiscordSendAsync(
+        string caseId,
+        int administratorClientId,
+        string administratorName,
+        CancellationToken token)
+    {
+        var evidenceCase = _store.Get(caseId)
+                           ?? throw new ArgumentException($"Evidence case {caseId} was not found.");
+        if (string.IsNullOrWhiteSpace(ResolveWebhook(evidenceCase)))
+            throw new InvalidOperationException("No Discord webhook is configured for this server.");
+
+        await _store.UpdateAsync(caseId, item =>
+        {
+            item.DiscordEligible = true;
+            item.DiscordManuallyRequested = true;
+            item.LastError = null;
+            item.History.Add(new EvidenceHistoryEntry
+            {
+                WhenUtc = DateTime.UtcNow,
+                Action = EvidenceHistoryAction.DiscordSendRequested,
+                AdminClientId = administratorClientId,
+                AdminName = administratorName,
+                Summary = $"Discord delivery manually requested by {administratorName}."
+            });
+        }, token);
+
+        if (!string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId))
+        {
+            if (!await UpdateCaseDiscordAsync(caseId, token))
+                throw new InvalidOperationException("The existing Discord message could not be updated. Check the case error and IW4MAdmin log.");
+            return "The existing Discord evidence message was updated.";
+        }
+
+        await QueueCaseAsync(caseId, token);
+        _logger.LogWarning(
+            "[DemosToDiscord] Discord delivery for case {CaseId} manually requested by administrator {AdministratorId}",
+            caseId, administratorClientId);
+        return "Case queued for Discord delivery. The demo will be attached when available.";
     }
 
     public async Task QueueCaseAsync(string caseId, CancellationToken token)
@@ -520,7 +569,33 @@ public sealed class DemoUploadService : IDisposable
     private bool ShouldSendMetadataOnly(EvidenceCase evidenceCase)
     {
         var serverOverride = ResolveOverride(evidenceCase.ServerId, evidenceCase.LegacyServerId);
-        return serverOverride?.SendMetadataOnlyCasesToDiscord ?? _config.SendMetadataOnlyCasesToDiscord;
+        return evidenceCase.DiscordManuallyRequested ||
+               (serverOverride?.SendMetadataOnlyCasesToDiscord ?? _config.SendMetadataOnlyCasesToDiscord);
+    }
+
+    internal (bool Eligible, string Reason) EvaluateDiscordEligibility(EvidenceCase evidenceCase)
+    {
+        if (evidenceCase.DiscordManuallyRequested)
+            return (true, "administrator override");
+        if (!string.IsNullOrWhiteSpace(evidenceCase.DiscordMessageId))
+            return (true, "existing Discord message");
+        if (evidenceCase.Reports.Count > 0)
+            return (true, "player report evidence");
+        if (evidenceCase.AntiCheat is not null)
+            return (true, "automated anti-cheat evidence");
+        if (evidenceCase.CommunitySignals.Count > 0)
+            return (true, "administrator-resolved ServerPulse evidence");
+        if (!_config.EnableProactiveDiscordNotifications)
+            return (false, "proactive Discord notifications are disabled");
+
+        var requiredScore = Math.Max(_config.ProactiveCaseRiskThreshold, _config.ProactiveDiscordRiskThreshold);
+        var highestScore = evidenceCase.ProactiveDetections
+            .Select(item => item.RiskScore)
+            .DefaultIfEmpty(0)
+            .Max();
+        return highestScore >= requiredScore
+            ? (true, $"proactive score {highestScore}/100 meets the current {requiredScore}/100 threshold")
+            : (false, $"proactive score {highestScore}/100 is below the current {requiredScore}/100 threshold");
     }
 
     private DiscordDeliveryOptions ResolveDeliveryOptions(EvidenceCase evidenceCase, bool hasDemo)
