@@ -147,7 +147,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         var mine = snapshot.Cases.Count(item => item.AssignedToClientId == originId);
         var builder = new StringBuilder();
         builder.Append("<div class=\"dtd-workspace space-y-5\"><section class=\"rounded-xl border border-line bg-surface p-5 shadow-sm md:p-6\"><div class=\"flex flex-col gap-4 md:flex-row md:items-center md:justify-between\"><div><div class=\"text-xs font-semibold uppercase tracking-wider text-primary\">Moderation workspace</div><h2 class=\"mt-1 text-2xl font-bold text-foreground\">Cheating Case Review</h2><p class=\"mt-1 max-w-3xl text-sm text-muted\">Triage player reports, statistical detections, anti-cheat events and match demos from one review queue.</p></div>")
-            .Append($"<a data-enhance-nav=\"false\" class=\"inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface-alt px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover\" href=\"{OverviewUrl(view)}\"><i class=\"ph ph-arrow-clockwise\"></i>Refresh</a></div></section>")
+            .Append($"<a class=\"inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface-alt px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover\" href=\"{OverviewUrl(view)}\"><i class=\"ph ph-arrow-clockwise\"></i>Refresh</a></div></section>")
             .Append("<section class=\"dtd-status-grid\">")
             .Append(DashboardCard("Awaiting review", awaitingReview, "Cases requiring an administrator decision", "ph-hourglass", "text-amber-400", "awaiting"))
             .Append(DashboardCard("Needs follow-up", followUp, "Inconclusive cases and further review", "ph-magnifying-glass", "text-primary", "followup"))
@@ -170,7 +170,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         {
             var cases = FilterCases(snapshot.Cases, view, originId, meta).Take(100).ToList();
             builder.Append("<section class=\"overflow-hidden rounded-xl border border-line bg-surface shadow-sm\"><div class=\"flex flex-col gap-3 border-b border-line px-5 py-4 md:flex-row md:items-center md:justify-between\"><div class=\"flex items-center gap-3\">")
-                .Append($"<a data-enhance-nav=\"false\" href=\"{OverviewUrl("summary")}\" class=\"flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface-alt text-muted hover:bg-surface-hover hover:text-foreground\" title=\"Back to overview\"><i class=\"ph ph-arrow-left\"></i></a><div><h3 class=\"font-semibold text-foreground\">{Encode(ViewTitle(view))}</h3><p class=\"text-sm text-muted\">Search, filter and open the cases in this queue.</p></div></div><span class=\"text-sm font-medium text-muted\">{cases.Count:N0} shown</span></div>")
+                .Append($"<a href=\"{OverviewUrl("summary")}\" class=\"flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface-alt text-muted hover:bg-surface-hover hover:text-foreground\" title=\"Back to overview\"><i class=\"ph ph-arrow-left\"></i></a><div><h3 class=\"font-semibold text-foreground\">{Encode(ViewTitle(view))}</h3><p class=\"text-sm text-muted\">Search, filter and open the cases in this queue.</p></div></div><span class=\"text-sm font-medium text-muted\">{cases.Count:N0} shown</span></div>")
                 .Append("<nav class=\"flex gap-1 overflow-x-auto border-b border-line bg-surface-alt/30 px-4 py-2\" aria-label=\"Case queues\">")
                 .Append(FilterLink("All", "all", view, snapshot.Cases.Count))
                 .Append(FilterLink("Awaiting", "awaiting", view, awaitingReview))
@@ -205,7 +205,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
     {
         var evidenceCase = _service.GetCase(caseId);
         if (evidenceCase is null)
-            return $"<div class=\"dtd-workspace rounded-xl border border-red-500/30 bg-red-500/10 p-5 text-red-300\"><div class=\"font-semibold\">Evidence case not found.</div><a data-enhance-nav=\"false\" class=\"mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline\" href=\"{OverviewUrl("summary")}\"><i class=\"ph ph-arrow-left\"></i>Return to case review</a></div>";
+            return $"<div class=\"dtd-workspace rounded-xl border border-red-500/30 bg-red-500/10 p-5 text-red-300\"><div class=\"font-semibold\">Evidence case not found.</div><a class=\"mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline\" href=\"{OverviewUrl("summary")}\"><i class=\"ph ph-arrow-left\"></i>Return to case review</a></div>";
 
         var metricsTask = _metrics.GetAsync(evidenceCase, token);
         var timelineTask = _timeline.GetAsync(evidenceCase, token);
@@ -240,7 +240,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
 
         var builder = new StringBuilder();
         builder.Append("<div class=\"dtd-workspace space-y-5\"><div class=\"flex flex-wrap items-center justify-between gap-3\">")
-            .Append($"<a data-enhance-nav=\"false\" class=\"inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline\" href=\"{OverviewUrl("summary")}\"><i class=\"ph ph-arrow-left\"></i>Case review overview</a>")
+            .Append($"<a class=\"inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline\" href=\"{OverviewUrl("summary")}\"><i class=\"ph ph-arrow-left\"></i>Case review overview</a>")
             .Append("<div class=\"flex items-center gap-2\">")
             .Append(CasePager("Newer", "ph-caret-left", newerCase))
             .Append(CasePager("Older", "ph-caret-right", olderCase))
@@ -799,7 +799,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         foreach (var item in cases)
         {
             var match = _friendlyNames.Resolve(item.Game, item.Map, item.Mode);
-            builder.Append($"<a data-enhance-nav=\"false\" href=\"{CaseUrl(item.Id)}\" class=\"flex flex-col gap-2 px-5 py-3 transition-colors hover:bg-surface-hover/30 md:flex-row md:items-center md:justify-between\"><div><div class=\"font-medium text-foreground\">{Encode(CleanDisplayText(item.ServerName))} · {Encode(match.Display)}</div><div class=\"mt-1 text-xs text-muted\">{Encode(EvidenceTime.Format(item.CreatedAtUtc))} · {Encode(match.RawDisplay)} · {Encode(string.Join(" + ", item.TriggerTypes.Select(TriggerLabel)))}</div></div><div class=\"flex flex-wrap gap-2\">{StatusBadge(item.Status)}{ReviewBadge(item.ReviewDecision)}</div></a>");
+            builder.Append($"<a href=\"{CaseUrl(item.Id)}\" class=\"flex flex-col gap-2 px-5 py-3 transition-colors hover:bg-surface-hover/30 md:flex-row md:items-center md:justify-between\"><div><div class=\"font-medium text-foreground\">{Encode(CleanDisplayText(item.ServerName))} · {Encode(match.Display)}</div><div class=\"mt-1 text-xs text-muted\">{Encode(EvidenceTime.Format(item.CreatedAtUtc))} · {Encode(match.RawDisplay)} · {Encode(string.Join(" + ", item.TriggerTypes.Select(TriggerLabel)))}</div></div><div class=\"flex flex-wrap gap-2\">{StatusBadge(item.Status)}{ReviewBadge(item.ReviewDecision)}</div></a>");
         }
         return builder.Append("</div></section>").ToString();
     }
@@ -828,7 +828,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
     {
         var games = cases.Select(item => item.Game).Where(item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(item => item);
         var servers = cases.Select(item => new { item.ServerId, ServerName = CleanDisplayText(item.ServerName) }).DistinctBy(item => item.ServerId, StringComparer.OrdinalIgnoreCase).OrderBy(item => item.ServerName);
-        var builder = new StringBuilder($"<form data-enhance-nav=\"false\" method=\"get\" action=\"{NativePath}\" class=\"grid gap-3 border-b border-line bg-surface-alt/10 px-4 py-4 md:grid-cols-2 xl:grid-cols-4\"><input type=\"hidden\" name=\"view\" value=\"{Encode(view)}\"><label class=\"xl:col-span-2\"><span class=\"mb-1 block text-xs font-semibold uppercase tracking-wide text-muted\">Search</span><div class=\"flex items-center rounded-lg border border-line bg-surface px-3\"><i class=\"ph ph-magnifying-glass text-muted\"></i><input name=\"q\" value=\"{Encode(Meta(meta, "q"))}\" placeholder=\"Player, case, GUID, map or server\" class=\"w-full border-0 bg-transparent px-2 py-2 text-sm text-foreground outline-none\"></div></label>");
+        var builder = new StringBuilder($"<form method=\"get\" action=\"{NativePath}\" class=\"grid gap-3 border-b border-line bg-surface-alt/10 px-4 py-4 md:grid-cols-2 xl:grid-cols-4\"><input type=\"hidden\" name=\"view\" value=\"{Encode(view)}\"><label class=\"xl:col-span-2\"><span class=\"mb-1 block text-xs font-semibold uppercase tracking-wide text-muted\">Search</span><div class=\"flex items-center rounded-lg border border-line bg-surface px-3\"><i class=\"ph ph-magnifying-glass text-muted\"></i><input name=\"q\" value=\"{Encode(Meta(meta, "q"))}\" placeholder=\"Player, case, GUID, map or server\" class=\"w-full border-0 bg-transparent px-2 py-2 text-sm text-foreground outline-none\"></div></label>");
         builder.Append(SelectFilter("game", "Game", Meta(meta, "game"), new[] { ("", "All games") }.Concat(games.Select(item => (item, item)))))
             .Append(SelectFilter("server", "Server", Meta(meta, "server"), new[] { ("", "All servers") }.Concat(servers.Select(item => (item.ServerId, item.ServerName)))))
             .Append(SelectFilter("source", "Evidence source", Meta(meta, "source"), new[] { ("", "All sources"), ("report", "Player report"), ("community", "ServerPulse community signal"), ("proactive", "Proactive detection"), ("anticheat", "Anti-cheat"), ("manual", "Manual ban") }))
@@ -836,7 +836,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
             .Append(SelectFilter("review", "Review state", Meta(meta, "review"), new[] { ("", "Any review state"), ("Unreviewed", "Unreviewed"), ("NeedsMoreReview", "Needs more review"), ("CheatingActionTaken", "Cheating, action taken"), ("CheatingNoAction", "Cheating, no action"), ("NotCheatingNoAction", "Not cheating"), ("Inconclusive", "Inconclusive") }))
             .Append(DateFilter("from", "Captured from", Meta(meta, "from")))
             .Append(DateFilter("to", "Captured to", Meta(meta, "to")))
-            .Append($"<div class=\"flex items-end gap-2\"><button type=\"submit\" class=\"inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-action-primary px-3 py-2 text-sm font-medium text-white hover:bg-action-primary-hover\"><i class=\"ph ph-funnel\"></i>Apply filters</button><a data-enhance-nav=\"false\" href=\"{OverviewUrl(view)}\" class=\"rounded-lg border border-line bg-surface px-3 py-2 text-sm text-muted hover:bg-surface-hover\">Clear</a></div></form>");
+            .Append($"<div class=\"flex items-end gap-2\"><button type=\"submit\" class=\"inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-action-primary px-3 py-2 text-sm font-medium text-white hover:bg-action-primary-hover\"><i class=\"ph ph-funnel\"></i>Apply filters</button><a href=\"{OverviewUrl(view)}\" class=\"rounded-lg border border-line bg-surface px-3 py-2 text-sm text-muted hover:bg-surface-hover\">Clear</a></div></form>");
         return builder.ToString();
     }
 
@@ -958,7 +958,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         string icon,
         string color,
         string destinationView) => $"""
-        <a data-enhance-nav="false" href="{OverviewUrl(destinationView)}" title="{Encode(description)}" class="dtd-status-card group flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-sm transition-colors hover:border-primary/40 hover:bg-surface-hover/20">
+        <a href="{OverviewUrl(destinationView)}" title="{Encode(description)}" class="dtd-status-card group flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-sm transition-colors hover:border-primary/40 hover:bg-surface-hover/20">
           <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-alt"><i class="ph {Encode(icon)} text-xl {Encode(color)}"></i></div>
           <div class="min-w-0 flex-1"><div class="text-2xl font-bold leading-none text-foreground">{value:N0}</div><div class="mt-1 truncate text-sm font-semibold text-foreground">{Encode(label)}</div></div>
           <i class="ph ph-caret-right shrink-0 text-muted transition-transform group-hover:translate-x-1 group-hover:text-primary"></i>
@@ -973,7 +973,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         string? extraQuery = null)
     {
         var url = OverviewUrl(destinationView) + (string.IsNullOrWhiteSpace(extraQuery) ? string.Empty : $"&{extraQuery}");
-        return $"<a data-enhance-nav=\"false\" href=\"{url}\" class=\"flex items-center gap-3 bg-surface px-5 py-4 transition-colors hover:bg-surface-hover/30\"><div class=\"flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-alt text-primary\"><i class=\"ph {Encode(icon)}\"></i></div><div class=\"min-w-0 flex-1\"><div class=\"font-medium text-foreground\">{Encode(label)}</div><div class=\"text-xs text-muted\">{value:N0} case(s)</div></div><i class=\"ph ph-caret-right text-muted\"></i></a>";
+        return $"<a href=\"{url}\" class=\"flex items-center gap-3 bg-surface px-5 py-4 transition-colors hover:bg-surface-hover/30\"><div class=\"flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-alt text-primary\"><i class=\"ph {Encode(icon)}\"></i></div><div class=\"min-w-0 flex-1\"><div class=\"font-medium text-foreground\">{Encode(label)}</div><div class=\"text-xs text-muted\">{value:N0} case(s)</div></div><i class=\"ph ph-caret-right text-muted\"></i></a>";
     }
 
     private static string OverviewMetric(
@@ -985,7 +985,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         string currentView)
     {
         var active = destinationView == currentView ? "bg-primary/5" : "hover:bg-surface-hover/30";
-        return $"<a data-enhance-nav=\"false\" href=\"{OverviewUrl(destinationView)}\" class=\"dtd-overview-metric flex min-w-0 items-center gap-3 border-r border-line px-4 py-4 transition-colors last:border-r-0 {active}\"><i class=\"ph {Encode(icon)} shrink-0 text-xl {Encode(color)}\"></i><div class=\"min-w-0\"><div class=\"text-xl font-bold text-foreground\">{value:N0}</div><div class=\"truncate text-xs text-muted\">{Encode(label)}</div></div></a>";
+        return $"<a href=\"{OverviewUrl(destinationView)}\" class=\"dtd-overview-metric flex min-w-0 items-center gap-3 border-r border-line px-4 py-4 transition-colors last:border-r-0 {active}\"><i class=\"ph {Encode(icon)} shrink-0 text-xl {Encode(color)}\"></i><div class=\"min-w-0\"><div class=\"text-xl font-bold text-foreground\">{value:N0}</div><div class=\"truncate text-xs text-muted\">{Encode(label)}</div></div></a>";
     }
 
     private static string FilterLink(string label, string destinationView, string currentView, int count)
@@ -993,7 +993,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         var active = destinationView == currentView
             ? "bg-primary text-white"
             : "text-muted hover:bg-surface-hover hover:text-foreground";
-        return $"<a data-enhance-nav=\"false\" href=\"{OverviewUrl(destinationView)}\" class=\"inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors {active}\"><span>{Encode(label)}</span><span class=\"rounded bg-black/10 px-1.5 py-0.5 text-xs\">{count:N0}</span></a>";
+        return $"<a href=\"{OverviewUrl(destinationView)}\" class=\"inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors {active}\"><span>{Encode(label)}</span><span class=\"rounded bg-black/10 px-1.5 py-0.5 text-xs\">{count:N0}</span></a>";
     }
 
     private string OverviewCaseRow(EvidenceCase item)
@@ -1027,7 +1027,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
               </div>
               <div class="flex flex-wrap items-center gap-2 md:justify-end">
                 {StatusBadge(item.Status)}{ReviewBadge(item.ReviewDecision)}
-                <a data-enhance-nav="false" href="{CaseUrl(item.Id)}" class="inline-flex items-center justify-center gap-2 rounded-lg bg-action-primary px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-action-primary-hover"><i class="ph ph-magnifying-glass"></i>Review case</a>
+                <a href="{CaseUrl(item.Id)}" class="inline-flex items-center justify-center gap-2 rounded-lg bg-action-primary px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-action-primary-hover"><i class="ph ph-magnifying-glass"></i>Review case</a>
               </div>
             </article>
             """;
@@ -1035,7 +1035,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
 
     private static string CasePager(string label, string icon, EvidenceCase? item) => item is null
         ? $"<span class=\"inline-flex cursor-not-allowed items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs text-muted opacity-40\"><i class=\"ph {Encode(icon)}\"></i>{Encode(label)}</span>"
-        : $"<a data-enhance-nav=\"false\" href=\"{CaseUrl(item.Id)}\" class=\"inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-hover\"><i class=\"ph {Encode(icon)}\"></i>{Encode(label)}</a>";
+        : $"<a href=\"{CaseUrl(item.Id)}\" class=\"inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-hover\"><i class=\"ph {Encode(icon)}\"></i>{Encode(label)}</a>";
 
     private static string InfoBlock(string label, object value, string icon) =>
         $"<div class=\"min-w-0 rounded-lg border border-line bg-surface-alt/20 p-3\"><dt class=\"flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted\"><i class=\"ph {Encode(icon)}\"></i>{Encode(label)}</dt><dd class=\"mt-1 break-words text-sm font-medium text-foreground\">{Encode(value)}</dd></div>";

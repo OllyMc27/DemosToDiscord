@@ -79,7 +79,7 @@ public sealed class Plugin : IPluginV2
         await _proactiveBaselines.StartAsync(token);
         _webfront.Register();
         if (_config.EnableWebfrontDashboard)
-            manager.GetPageList().Pages["Cheating Case Review"] = DemosToDiscordWebfront.NativePath;
+            NativePageRegistration.Add(manager.GetPageList(), "Cheating Case Review", DemosToDiscordWebfront.NativePath, "ph-film-strip");
         Console.WriteLine($"[{Name}] by {Author} loaded. Version: {Version}");
         Console.WriteLine($"[{Name}] report evidence: {(_config.UploadOnReports ? "enabled" : "disabled")}; anti-cheat evidence: {(_config.UploadOnAutomatedBans ? string.Join(", ", _config.AutomatedBanGames) : "disabled")}");
 

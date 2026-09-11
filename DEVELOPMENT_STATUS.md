@@ -1,5 +1,7 @@
 # Evidence review release status
 
+Version `2.6.0` updates the native bundle presentation layer: enhanced route/query navigation now rerenders the active queue or case, the sidebar icon is restored through compatible host metadata, and plugin CSS follows IW4MAdmin's native content flow and responsive theme tokens. Evidence and moderation services are unchanged.
+
 Version `2.5.2` reuses the population scorer as read-only review context on every evidence case. Ordinary report, anti-cheat and ServerPulse cases retain their original source and outcome; the live comparison never creates, upgrades or punishes from the case page.
 
 Version `2.5.1` removes the separate proactive Discord threshold. Every retained proactive case now enters one demo-or-metadata Discord workflow, with Moderator-or-higher evidence retries updating the original message.

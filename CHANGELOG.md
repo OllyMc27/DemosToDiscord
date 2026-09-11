@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0 - 2026-09-11
+
+- Fixed native queue, filter and case navigation so route and query changes rerender Cheating Case Review without a manual browser refresh.
+- Restored the dedicated film-strip sidebar icon through bundle-host navigation metadata while retaining compatibility with the stable plugin SDK.
+- Refined case grids, sticky actions, responsive evidence layouts and loading/error states around IW4MAdmin's native theme tokens and content flow.
+
 ## 2.5.2 - 2026-09-11
 
 - Added a read-only statistical review context to every evidence case, including report, anti-cheat and ServerPulse community-signal cases where demos are unsupported or unavailable.
