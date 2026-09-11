@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, feature/native-web-bundle ]
   pull_request:
 
 jobs:
@@ -17,9 +17,9 @@ jobs:
         run: dotnet restore DemosToDiscord/DemosToDiscord.csproj
       - name: Build
         run: dotnet build DemosToDiscord/DemosToDiscord.csproj -c Release --no-restore
-      - name: Upload DLL
+      - name: Upload native web bundle
         uses: actions/upload-artifact@v4
         with:
-          name: DemosToDiscord
-          path: DemosToDiscord/bin/Release/net10.0/DemosToDiscord.dll
+          name: DemosToDiscord-native-web-bundle
+          path: DemosToDiscord/bin/Release/DemosToDiscord.zip
 

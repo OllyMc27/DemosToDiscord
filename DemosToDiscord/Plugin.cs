@@ -69,16 +69,17 @@ public sealed class Plugin : IPluginV2
         IManagementEventSubscriptions.ClientStateAuthorized += OnClientStateAuthorized;
         IGameEventSubscriptions.MatchEnded += OnMatchEnded;
         IManagementEventSubscriptions.Load += OnLoad;
-        _webfront.Register();
-
         _logger.LogInformation("[{Name}] {Version} by {Author} initialized", Name, Version, Author);
     }
 
-    private async Task OnLoad(IManager _, CancellationToken token)
+    private async Task OnLoad(IManager manager, CancellationToken token)
     {
         await _service.StartAsync(token);
         ServerPulseIntegrationBridge.Register(_service.CaptureServerPulseAsync);
         await _proactiveBaselines.StartAsync(token);
+        _webfront.Register();
+        if (_config.EnableWebfrontDashboard)
+            manager.GetPageList().Pages["Cheating Case Review"] = DemosToDiscordWebfront.NativePath;
         Console.WriteLine($"[{Name}] by {Author} loaded. Version: {Version}");
         Console.WriteLine($"[{Name}] report evidence: {(_config.UploadOnReports ? "enabled" : "disabled")}; anti-cheat evidence: {(_config.UploadOnAutomatedBans ? string.Join(", ", _config.AutomatedBanGames) : "disabled")}");
 

@@ -11,26 +11,10 @@ namespace DemosToDiscord;
 public sealed class DemosToDiscordWebfront : IDisposable
 {
     public const string InteractionKey = "Webfront::Nav::Admin::DemosToDiscord";
+    public const string NativePath = "/demos-to-discord";
     public const string ReviewInteractionKey = "DemosToDiscord::ReviewCase";
     public const string DeleteInteractionKey = "DemosToDiscord::DeleteCase";
     public const string SendDiscordInteractionKey = "DemosToDiscord::SendToDiscord";
-    private const string WideStyles = """
-        <style>
-          .max-w-7xl:has(.dtd-workspace)>div.flex.items-center.gap-3.mb-8{display:none}
-          .dtd-identity-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.75rem}
-          .dtd-status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem}
-          .dtd-status-card{min-height:5.25rem}
-          .dtd-case-row{display:grid;grid-template-columns:minmax(0,2fr) minmax(13rem,1fr) auto;gap:1rem;align-items:center}
-          .dtd-detail-layout{display:grid;grid-template-columns:minmax(0,1fr) 18rem;gap:1.25rem;align-items:start}
-          .dtd-evidence-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(16rem,.85fr);gap:1.25rem;align-items:start}
-          .dtd-actions{position:sticky;top:1.5rem}
-          @media (min-width:1280px){.dtd-workspace{width:min(1600px,calc(100vw - 19rem));position:relative;left:50%;transform:translateX(-50%)}}
-          @media (max-width:1023px){.dtd-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dtd-case-row,.dtd-detail-layout,.dtd-evidence-grid{grid-template-columns:1fr}.dtd-actions{position:static}}
-          @media (max-width:560px){.dtd-status-grid{grid-template-columns:1fr}}
-          @media (max-width:767px){.dtd-overview-metric:nth-child(2n){border-right:0}.dtd-overview-metric:nth-child(-n+2){border-bottom:1px solid var(--color-line)}}
-        </style>
-        """;
-
     private readonly IInteractionRegistration _interactions;
     private readonly IConfigurationHandlerV2<DemosToDiscordConfig> _configurationHandler;
     private readonly DemosToDiscordConfig _config;
@@ -74,28 +58,6 @@ public sealed class DemosToDiscordWebfront : IDisposable
         _interactions.UnregisterInteraction(ReviewInteractionKey);
         _interactions.UnregisterInteraction(DeleteInteractionKey);
         _interactions.UnregisterInteraction(SendDiscordInteractionKey);
-
-        if (_config.EnableWebfrontDashboard)
-        {
-            _interactions.RegisterInteraction(InteractionKey, (_, _, _) =>
-            {
-                var interaction = new InteractionData
-                {
-                    Enabled = true,
-                    Name = "Cheating Case Review",
-                    Description = "Review reports, detections and match evidence",
-                    DisplayMeta = "ph-film-strip",
-                    InteractionId = InteractionKey,
-                    MinimumPermission = _config.WebfrontMinimumPermission,
-                    InteractionType = InteractionType.TemplateContent,
-                    Source = "DemosToDiscord",
-                    PermissionEntity = "Interaction",
-                    PermissionAccess = "Read",
-                    Action = (originId, _, _, meta, token) => RenderAsync(originId, meta, token)
-                };
-                return Task.FromResult<IInteractionData>(interaction);
-            });
-        }
 
         _interactions.RegisterInteraction(ReviewInteractionKey, (_, _, _) =>
         {
@@ -160,6 +122,9 @@ public sealed class DemosToDiscordWebfront : IDisposable
         });
     }
 
+    public Task<string> RenderNativeAsync(int originId, IDictionary<string, string> meta, CancellationToken token) =>
+        RenderAsync(originId, meta, token);
+
     private async Task<string> RenderAsync(int originId, IDictionary<string, string> meta, CancellationToken token)
     {
         if (meta.TryGetValue("case", out var caseId) && !string.IsNullOrWhiteSpace(caseId))
@@ -180,7 +145,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
             EvidenceReviewDecision.NeedsMoreReview or EvidenceReviewDecision.Inconclusive);
         var unassigned = snapshot.Cases.Count(item => item.AssignedToClientId is null);
         var mine = snapshot.Cases.Count(item => item.AssignedToClientId == originId);
-        var builder = new StringBuilder(WideStyles);
+        var builder = new StringBuilder();
         builder.Append("<div class=\"dtd-workspace space-y-5\"><section class=\"rounded-xl border border-line bg-surface p-5 shadow-sm md:p-6\"><div class=\"flex flex-col gap-4 md:flex-row md:items-center md:justify-between\"><div><div class=\"text-xs font-semibold uppercase tracking-wider text-primary\">Moderation workspace</div><h2 class=\"mt-1 text-2xl font-bold text-foreground\">Cheating Case Review</h2><p class=\"mt-1 max-w-3xl text-sm text-muted\">Triage player reports, statistical detections, anti-cheat events and match demos from one review queue.</p></div>")
             .Append($"<a data-enhance-nav=\"false\" class=\"inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface-alt px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover\" href=\"{OverviewUrl(view)}\"><i class=\"ph ph-arrow-clockwise\"></i>Refresh</a></div></section>")
             .Append("<section class=\"dtd-status-grid\">")
@@ -240,7 +205,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
     {
         var evidenceCase = _service.GetCase(caseId);
         if (evidenceCase is null)
-            return WideStyles + $"<div class=\"dtd-workspace rounded-xl border border-red-500/30 bg-red-500/10 p-5 text-red-300\"><div class=\"font-semibold\">Evidence case not found.</div><a data-enhance-nav=\"false\" class=\"mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline\" href=\"{OverviewUrl("summary")}\"><i class=\"ph ph-arrow-left\"></i>Return to case review</a></div>";
+            return $"<div class=\"dtd-workspace rounded-xl border border-red-500/30 bg-red-500/10 p-5 text-red-300\"><div class=\"font-semibold\">Evidence case not found.</div><a data-enhance-nav=\"false\" class=\"mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline\" href=\"{OverviewUrl("summary")}\"><i class=\"ph ph-arrow-left\"></i>Return to case review</a></div>";
 
         var metricsTask = _metrics.GetAsync(evidenceCase, token);
         var timelineTask = _timeline.GetAsync(evidenceCase, token);
@@ -273,7 +238,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
         var newerCase = caseIndex > 0 ? orderedCases[caseIndex - 1] : null;
         var olderCase = caseIndex >= 0 && caseIndex < orderedCases.Count - 1 ? orderedCases[caseIndex + 1] : null;
 
-        var builder = new StringBuilder(WideStyles);
+        var builder = new StringBuilder();
         builder.Append("<div class=\"dtd-workspace space-y-5\"><div class=\"flex flex-wrap items-center justify-between gap-3\">")
             .Append($"<a data-enhance-nav=\"false\" class=\"inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline\" href=\"{OverviewUrl("summary")}\"><i class=\"ph ph-arrow-left\"></i>Case review overview</a>")
             .Append("<div class=\"flex items-center gap-2\">")
@@ -863,7 +828,7 @@ public sealed class DemosToDiscordWebfront : IDisposable
     {
         var games = cases.Select(item => item.Game).Where(item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(item => item);
         var servers = cases.Select(item => new { item.ServerId, ServerName = CleanDisplayText(item.ServerName) }).DistinctBy(item => item.ServerId, StringComparer.OrdinalIgnoreCase).OrderBy(item => item.ServerName);
-        var builder = new StringBuilder($"<form data-enhance-nav=\"false\" method=\"get\" action=\"/Interaction/Render/{InteractionKey}\" class=\"grid gap-3 border-b border-line bg-surface-alt/10 px-4 py-4 md:grid-cols-2 xl:grid-cols-4\"><input type=\"hidden\" name=\"view\" value=\"{Encode(view)}\"><label class=\"xl:col-span-2\"><span class=\"mb-1 block text-xs font-semibold uppercase tracking-wide text-muted\">Search</span><div class=\"flex items-center rounded-lg border border-line bg-surface px-3\"><i class=\"ph ph-magnifying-glass text-muted\"></i><input name=\"q\" value=\"{Encode(Meta(meta, "q"))}\" placeholder=\"Player, case, GUID, map or server\" class=\"w-full border-0 bg-transparent px-2 py-2 text-sm text-foreground outline-none\"></div></label>");
+        var builder = new StringBuilder($"<form data-enhance-nav=\"false\" method=\"get\" action=\"{NativePath}\" class=\"grid gap-3 border-b border-line bg-surface-alt/10 px-4 py-4 md:grid-cols-2 xl:grid-cols-4\"><input type=\"hidden\" name=\"view\" value=\"{Encode(view)}\"><label class=\"xl:col-span-2\"><span class=\"mb-1 block text-xs font-semibold uppercase tracking-wide text-muted\">Search</span><div class=\"flex items-center rounded-lg border border-line bg-surface px-3\"><i class=\"ph ph-magnifying-glass text-muted\"></i><input name=\"q\" value=\"{Encode(Meta(meta, "q"))}\" placeholder=\"Player, case, GUID, map or server\" class=\"w-full border-0 bg-transparent px-2 py-2 text-sm text-foreground outline-none\"></div></label>");
         builder.Append(SelectFilter("game", "Game", Meta(meta, "game"), new[] { ("", "All games") }.Concat(games.Select(item => (item, item)))))
             .Append(SelectFilter("server", "Server", Meta(meta, "server"), new[] { ("", "All servers") }.Concat(servers.Select(item => (item.ServerId, item.ServerName)))))
             .Append(SelectFilter("source", "Evidence source", Meta(meta, "source"), new[] { ("", "All sources"), ("report", "Player report"), ("community", "ServerPulse community signal"), ("proactive", "Proactive detection"), ("anticheat", "Anti-cheat"), ("manual", "Manual ban") }))
@@ -1085,10 +1050,10 @@ public sealed class DemosToDiscordWebfront : IDisposable
     };
 
     internal static string CaseUrl(string caseId) =>
-        $"/Interaction/Render/{InteractionKey}?case={WebUtility.UrlEncode(caseId)}";
+        $"{NativePath}?case={WebUtility.UrlEncode(caseId)}";
 
     private static string OverviewUrl(string view) =>
-        $"/Interaction/Render/{InteractionKey}?view={WebUtility.UrlEncode(view)}";
+        $"{NativePath}?view={WebUtility.UrlEncode(view)}";
 
     private static string MetricTile(string label, string value, string icon, string color) =>
         $"<div class=\"rounded-lg border border-line bg-surface/30 p-3\"><div class=\"flex items-center justify-between gap-2\"><div class=\"text-lg font-bold text-foreground\">{Encode(value)}</div><i class=\"ph {Encode(icon)} {Encode(color)} text-lg\"></i></div><div class=\"mt-1 text-xs uppercase tracking-wide text-muted\">{Encode(label)}</div></div>";

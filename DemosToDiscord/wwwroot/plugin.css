@@ -1,0 +1,25 @@
+.dtd-identity-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.75rem}
+.dtd-status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem}
+.dtd-status-card{min-height:5.25rem}
+.dtd-case-row{display:grid;grid-template-columns:minmax(0,2fr) minmax(13rem,1fr) auto;gap:1rem;align-items:center}
+.dtd-detail-layout{display:grid;grid-template-columns:minmax(0,1fr) 18rem;gap:1.25rem;align-items:start}
+.dtd-evidence-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(16rem,.85fr);gap:1.25rem;align-items:start}
+.dtd-actions{position:sticky;top:1.5rem}
+
+.dtd-native-state {
+  display: flex;
+  min-height: 14rem;
+  align-items: center;
+  justify-content: center;
+  gap: .65rem;
+  color: var(--color-muted);
+}
+
+@media (min-width:1280px){.dtd-workspace{width:min(1600px,calc(100vw - 19rem));position:relative;left:50%;transform:translateX(-50%)}}
+@media (max-width:1023px){.dtd-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dtd-case-row,.dtd-detail-layout,.dtd-evidence-grid{grid-template-columns:1fr}.dtd-actions{position:static}}
+@media (max-width:560px){.dtd-status-grid{grid-template-columns:1fr}}
+@media (max-width:767px){.dtd-overview-metric:nth-child(2n){border-right:0}.dtd-overview-metric:nth-child(-n+2){border-bottom:1px solid var(--color-line)}}
+
+.dtd-native-error {
+  color: var(--color-danger, #ef4444);
+}
