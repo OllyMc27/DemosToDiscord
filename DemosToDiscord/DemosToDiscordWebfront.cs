@@ -11,7 +11,8 @@ namespace DemosToDiscord;
 public sealed class DemosToDiscordWebfront : IDisposable
 {
     public const string InteractionKey = "Webfront::Nav::Admin::DemosToDiscord";
-    public const string NativePath = "/demos-to-discord";
+    public const string NativePath = "/admincase";
+    public const string LegacyNativePath = "/demos-to-discord";
     public const string ReviewInteractionKey = "DemosToDiscord::ReviewCase";
     public const string DeleteInteractionKey = "DemosToDiscord::DeleteCase";
     public const string SendDiscordInteractionKey = "DemosToDiscord::SendToDiscord";

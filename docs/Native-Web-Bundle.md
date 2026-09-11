@@ -1,6 +1,6 @@
 # Native web bundle development
 
-The `feature/native-web-bundle` branch moves Cheating Case Review from a legacy template interaction to the native `/demos-to-discord` Razor route.
+The `feature/native-web-bundle` branch moves Cheating Case Review from a legacy template interaction to the native `/admincase` Razor route. The previous `/demos-to-discord` route remains as a compatibility redirect for saved links.
 
 ## What changed
 

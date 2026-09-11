@@ -1,5 +1,7 @@
 # Evidence review release status
 
+Version `2.6.3` extends the plugin-side navigation bridge to links inside Cheating Case Review and makes `/admincase` the canonical route. Generated Discord case links use the new route; `/demos-to-discord` remains a query-preserving compatibility redirect.
+
 Version `2.6.2` applies a plugin-side sidebar navigation bridge required by the current bundle host. Entering or leaving Cheating Case Review now performs a reliable document navigation instead of leaving stale content beneath an updated URL.
 
 Version `2.6.0` updates the native bundle presentation layer: enhanced route/query navigation now rerenders the active queue or case, the sidebar icon is restored through compatible host metadata, and plugin CSS follows IW4MAdmin's native content flow and responsive theme tokens. Evidence and moderation services are unchanged.

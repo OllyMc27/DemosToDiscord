@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.6.3 - 2026-09-11
+
+- Fixed queue, filter, case-history and player links inside Cheating Case Review when hosted by IW4MAdmin's interactive router.
+- Renamed the canonical Cheating Case Review route to `/admincase`; generated web and Discord case links now use it, while `/demos-to-discord` redirects existing bookmarks and older Discord messages with their query string intact.
+
 ## 2.6.2 - 2026-09-11
 
 - Added a plugin-side sidebar navigation bridge for bundle hosts whose interactive sidebar updates browser history without replacing the routed page.

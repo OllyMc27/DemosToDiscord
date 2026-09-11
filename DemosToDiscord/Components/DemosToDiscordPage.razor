@@ -1,3 +1,4 @@
+@page "/admincase"
 @page "/demos-to-discord"
 @attribute [ExcludeFromInteractiveRouting]
 @rendermode RenderMode.InteractiveServer
@@ -14,6 +15,10 @@
 {
     <div class="dtd-native-state"><i class="ph ph-spinner animate-spin"></i><span>Loading Cheating Case Review…</span></div>
 }
+else if (_legacyRoute)
+{
+    <div class="dtd-native-state"><i class="ph ph-arrow-right animate-pulse"></i><span>Moving to the new Cheating Case Review address…</span></div>
+}
 else if (!_authorised)
 {
     <div class="dtd-native-state dtd-native-error"><i class="ph ph-lock-key"></i><span>You do not have permission to open Cheating Case Review.</span></div>
@@ -28,7 +33,9 @@ else if (!string.IsNullOrWhiteSpace(_error))
 }
 else
 {
-    @((MarkupString)_markup)
+    <div data-enhance-nav="false">
+        @((MarkupString)_markup)
+    </div>
 }
 
 @code {
@@ -39,6 +46,7 @@ else
     private bool _available;
     private string _markup = string.Empty;
     private string? _error;
+    private bool _legacyRoute;
     private IJSObjectReference? _navigationBridge;
 
     protected override async Task OnParametersSetAsync()
@@ -48,6 +56,15 @@ else
         _available = false;
         _markup = string.Empty;
         _error = null;
+        _legacyRoute = new Uri(Navigation.Uri).AbsolutePath.Equals(
+            DemosToDiscordWebfront.LegacyNativePath,
+            StringComparison.OrdinalIgnoreCase);
+
+        if (_legacyRoute)
+        {
+            _loading = false;
+            return;
+        }
 
         var state = AuthenticationStateTask is null ? null : await AuthenticationStateTask;
         _authorised = NativeWebSupport.HasPermission(state?.User, Config.WebfrontMinimumPermission);
@@ -78,11 +95,21 @@ else
             return;
         }
 
+        if (_legacyRoute)
+        {
+            var current = new Uri(Navigation.Uri);
+            Navigation.NavigateTo(
+                $"{DemosToDiscordWebfront.NativePath}{current.Query}",
+                forceLoad: true,
+                replace: true);
+            return;
+        }
+
         try
         {
             _navigationBridge = await JS.InvokeAsync<IJSObjectReference>(
                 "import",
-                "/_content/DemosToDiscord/navigation-bridge.js?v=2.6.2");
+                "/_content/DemosToDiscord/navigation-bridge.js?v=2.6.3");
             await _navigationBridge.InvokeVoidAsync("install");
         }
         catch (JSDisconnectedException)
