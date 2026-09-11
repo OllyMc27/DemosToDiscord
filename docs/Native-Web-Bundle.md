@@ -7,7 +7,7 @@ The `feature/native-web-bundle` branch moves Cheating Case Review from a legacy 
 - IW4MAdmin's page list now supplies the **Cheating Case Review** administrator sidebar entry.
 - The route reads the logged-in user's client ID and permission claims before rendering.
 - Queue, filter, case and Discord links remain under the native route.
-- Route and query changes reload the Razor page state during enhanced navigation, so queues and cases no longer require a browser refresh.
+- The wrapper route opts out of the host's incompatible enhanced-navigation transition. Queue and case links therefore load automatically instead of leaving the previous page under a changed URL.
 - The bundle registers the `ph-film-strip` sidebar icon when the host exposes icon metadata.
 - Bundle-owned responsive layout CSS is shipped in `wwwroot` and scoped by the host.
 - Existing review, delete and Send to Discord actions still use the same permission-checked backend services.

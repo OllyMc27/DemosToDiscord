@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.6.1 - 2026-09-11
+
+- Fixed sidebar transitions into and out of Cheating Case Review on the current bundle host by opting the wrapper route out of incompatible enhanced routing.
+- Navigation now reloads the destination automatically instead of leaving the previous plugin page rendered under a changed URL.
+
 ## 2.6.0 - 2026-09-11
 
 - Fixed native queue, filter and case navigation so route and query changes rerender Cheating Case Review without a manual browser refresh.
