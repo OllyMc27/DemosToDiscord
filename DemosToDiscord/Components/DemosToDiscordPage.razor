@@ -1,9 +1,12 @@
 @page "/demos-to-discord"
 @attribute [ExcludeFromInteractiveRouting]
 @rendermode RenderMode.InteractiveServer
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
 @inject DemosToDiscordWebfront Webfront
 @inject DemosToDiscordConfig Config
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>Cheating Case Review</PageTitle>
 
@@ -36,6 +39,7 @@ else
     private bool _available;
     private string _markup = string.Empty;
     private string? _error;
+    private IJSObjectReference? _navigationBridge;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -65,5 +69,51 @@ else
         }
 
         _loading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            _navigationBridge = await JS.InvokeAsync<IJSObjectReference>(
+                "import",
+                "/_content/DemosToDiscord/navigation-bridge.js?v=2.6.2");
+            await _navigationBridge.InvokeVoidAsync("install");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The page is already leaving, so no cleanup is required.
+        }
+        catch (JSException)
+        {
+            // Navigation remains usable through a normal browser refresh if static assets are unavailable.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_navigationBridge is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _navigationBridge.InvokeVoidAsync("uninstall");
+            await _navigationBridge.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // Expected when a full document navigation has already disconnected the circuit.
+        }
+        catch (JSException)
+        {
+            // Ignore cleanup failures while the host is tearing down the interactive page.
+        }
     }
 }

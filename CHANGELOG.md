@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.6.2 - 2026-09-11
+
+- Added a plugin-side sidebar navigation bridge for bundle hosts whose interactive sidebar updates browser history without replacing the routed page.
+- Sidebar transitions from Cheating Case Review now perform a reliable full document navigation without changing IW4MAdmin itself.
+
 ## 2.6.1 - 2026-09-11
 
 - Fixed sidebar transitions into and out of Cheating Case Review on the current bundle host by opting the wrapper route out of incompatible enhanced routing.

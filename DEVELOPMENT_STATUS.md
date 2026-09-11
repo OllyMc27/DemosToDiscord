@@ -1,6 +1,6 @@
 # Evidence review release status
 
-Version `2.6.1` applies the plugin-side automatic navigation fallback required by the current bundle host. Entering, leaving or changing the Cheating Case Review route no longer leaves stale content beneath an updated URL.
+Version `2.6.2` applies a plugin-side sidebar navigation bridge required by the current bundle host. Entering or leaving Cheating Case Review now performs a reliable document navigation instead of leaving stale content beneath an updated URL.
 
 Version `2.6.0` updates the native bundle presentation layer: enhanced route/query navigation now rerenders the active queue or case, the sidebar icon is restored through compatible host metadata, and plugin CSS follows IW4MAdmin's native content flow and responsive theme tokens. Evidence and moderation services are unchanged.
 
